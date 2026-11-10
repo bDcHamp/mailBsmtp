@@ -286,11 +286,9 @@ python -m unittest discover -s tests
 
 This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
 
-- **Copyright &copy; 2026 Sagar Biswas. All rights reserved.**
+- **Copyright &copy; 2026 bdchamp. All rights reserved.**
 - Free for use, modification, and redistribution under the terms of the GPL-3.0.
 - Any derivative works or public distributions must remain open source under the GPL-3.0 license and preserve original author attribution.
 
 ### Support & Contact
-- **Author:** Sagar Biswas ([MultiHAT](https://multihat.dev))
-- **Portfolio:** [sagarbiswas.multihat.dev](https://sagarbiswas.multihat.dev)
-- **Support MultiHAT:** [Sponsor on Polar.sh](https://buy.polar.sh/polar_cl_I7DT5UQNUs1Qjb4VrFYOiRA2nkb3RVVUJCnjr3o5SGK)
+- **Author:** bdchamp
