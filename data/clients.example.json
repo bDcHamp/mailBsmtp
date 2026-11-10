@@ -1,0 +1,23 @@
+[
+  {
+    "client_id": "client1@example.com",
+    "name": "John Doe",
+    "email": "client1@example.com",
+    "company": "Apex Retail",
+    "project_name": "SEO & Content Growth",
+    "reminder_note": "Review draft articles and approve Q3 keyword list",
+    "daily_limit": 100,
+    "is_active": true
+  },
+  {
+    "client_id": "client2@example.com",
+    "name": "Sarah Jenkins",
+    "email": "client2@example.com",
+    "company": "Nexus Tech",
+    "project_name": "Google Ads PPC",
+    "reminder_note": "Bid strategy adjustments and search term audit in progress",
+    "daily_limit": 100,
+    "is_active": true
+  }
+]
+

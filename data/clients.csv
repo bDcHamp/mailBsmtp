@@ -1,0 +1,32 @@
+name,email,company,project_name,reminder_note,daily_limit,is_active
+John Doe,client1@example.com,Apex Retail,SEO & Content Growth,Review draft articles and approve Q3 keyword list,100,1
+Sarah Jenkins,client2@example.com,Nexus Tech,Google Ads PPC,Bid strategy adjustments and search term audit in progress,100,1
+Michael Chang,client3@example.com,Lumen City,Brand Identity & Creative,Final logo and typography guidelines ready for feedback,100,1
+Emma Watson,client4@example.com,Solstice Wellness,Social Media Management,Weekly editorial calendar and reels scheduled,100,1
+David Miller,client5@example.com,Vanguard Logistics,Conversion Rate Optimization,Landing page A/B test variations live,100,1
+Lisa Ray,client6@example.com,Harbor Finance,Email Newsletter Campaign,Monthly market analysis draft awaiting signoff,100,1
+Robert Taylor,client7@example.com,Zenith Hospitality,Local SEO & Maps Ranking,Review Google Business Profile review responses,100,1
+Amanda Clark,client8@example.com,Summit Apparel,Influencer Outreach,Contract sent to micro-influencer tier 1 candidates,100,1
+James Wilson,client9@example.com,Aura Cosmetics,Paid TikTok Campaigns,Video creatives submitted for client review,100,1
+Elena Rostova,client10@example.com,Nordic Furniture,Meta Ads Retargeting,Catalog sales campaign ROAS review,100,1
+Daniel Brown,client11@example.com,Pulse Health,Reputation Management,Quarterly customer sentiment analysis prepared,100,1
+Sophia Martinez,client12@example.com,BlueWave Software,B2B Lead Generation,LinkedIn ad copy and lead magnet verification,100,1
+Kevin Patel,client13@example.com,GreenLeaf Organics,Amazon Marketplace PPC,Sponsored products campaign optimization,100,1
+Rachel Green,client14@example.com,Urban Architecture,Website Redesign,Figma wireframe approval and technical spec review,100,1
+Brian Adams,client15@example.com,Metro Automotive,Display Banner Campaigns,Retargeting banners published across ad exchange,100,1
+Jessica White,client16@example.com,Starlight Dental,Patient Booking Funnel,SMS and email reminder sequence verification,100,1
+Thomas Scott,client17@example.com,Horizon Insurance,Content Marketing & PR,Press release draft regarding new partnership,100,1
+Olivia Hall,client18@example.com,Artisan Coffee,Affiliate Marketing,Partner commission rates and coupon setup,100,1
+William Harris,client19@example.com,Sterling Legal,Legal SEO & Citations,Local directory citation cleanup in progress,100,1
+Chloe Lewis,client20@example.com,Radiant Skincare,Video Production,Product demo reel editing completed,100,1
+Matthew King,client21@example.com,Skyline Properties,Virtual Tour Ads,Video walkthrough campaign live on Facebook,100,1
+Hannah Young,client22@example.com,Nova Fitness,Membership Lead Generation,Free trial landing page conversion check,100,1
+Andrew Wright,client23@example.com,Pacific Marine,Industry Directory Outreach,Backlink acquisition batch submitted,100,1
+Grace Allen,client24@example.com,Oasis Spa,Seasonal Promotion,Holiday gift card campaign scheduling,100,1
+Christopher Lee,client25@example.com,Krypton Security,Whitepaper Distribution,Cybersecurity whitepaper download funnel review,100,1
+Victoria Baker,client26@example.com,Cascade Cleaners,Customer Win-Back Sequence,Dormant customer email automation review,100,1
+Justin Campbell,client27@example.com,Apex Fitness Apparel,Brand Ambassador Program,Tier 2 recruitment outreach underway,100,1
+Samantha Mitchell,client28@example.com,Pure Water Co,Technical SEO Audit,Core Web Vitals and schema markup implementation,100,1
+Nicholas Roberts,client29@example.com,Titan Hardware,B2B Catalog Optimization,Product schema and dynamic pricing feed update,100,1
+Emily Carter,client30@example.com,Crestview Education,Student Enrollment Ads,Google Search Ads keyword negative match cleanup,100,1
+

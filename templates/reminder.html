@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Work Progress & Action Items Reminder</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f6f9; font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #2d3748; line-height: 1.6;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f4f6f9; padding: 30px 10px;">
+    <tr>
+      <td align="center">
+        <!-- Main Container Card -->
+        <table role="presentation" width="100%" max-width="600" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+          
+          <!-- Header Banner -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 28px 32px; text-align: left;">
+              <div style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #93c5fd; margin-bottom: 4px;">
+                {company} &bull; Client Work Update
+              </div>
+              <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 700; line-height: 1.3;">
+                Daily Action Items & Progress Reminder
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Body Content -->
+          <tr>
+            <td style="padding: 32px;">
+              <p style="margin-top: 0; font-size: 16px; color: #1a202c;">
+                Dear <strong>{client_name}</strong>,
+              </p>
+              
+              <p style="font-size: 15px; color: #4a5568;">
+                This is a regular scheduled work notification regarding your ongoing campaign for <strong>{project_name}</strong>. Our marketing operations team is actively monitoring campaign metrics and managing deliverables.
+              </p>
+
+              <!-- Highlighted Reminder / Action Note Card -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin: 24px 0; background-color: #f8fafc; border-left: 4px solid #2563eb; border-radius: 4px; padding: 18px 20px;">
+                <tr>
+                  <td>
+                    <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #2563eb; letter-spacing: 0.8px; margin-bottom: 6px;">
+                      Current Work Item & Milestone
+                    </div>
+                    <div style="font-size: 15px; color: #1e293b; font-weight: 500;">
+                      {reminder_note}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Metadata Table -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px; font-size: 13px; color: #64748b; background-color: #f8fafc; border-radius: 6px; padding: 12px 16px;">
+                <tr>
+                  <td style="padding: 4px 0;"><strong>Project Scope:</strong> {project_name}</td>
+                  <td style="padding: 4px 0; text-align: right;"><strong>Date:</strong> {current_date}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0;"><strong>Company:</strong> {company}</td>
+                  <td style="padding: 4px 0; text-align: right;"><strong>Transmission:</strong> #{sequence_num} / {daily_limit}</td>
+                </tr>
+              </table>
+
+              <p style="font-size: 14px; color: #4a5568; margin-bottom: 28px;">
+                If you have questions, updates, or need immediate revisions on this deliverable, please reply directly to this email or reach out to your designated account manager.
+              </p>
+
+              <!-- Sign-off -->
+              <p style="margin-bottom: 0; font-size: 14px; color: #1a202c;">
+                Best regards,<br>
+                <strong>{sender_name}</strong><br>
+                <span style="color: #64748b; font-size: 13px;">Marketing Operations & Client Relations</span>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 32px; text-align: center; font-size: 12px; color: #94a3b8;">
+              <p style="margin: 0 0 6px 0;">
+                This automated reminder was sent to <strong>{client_email}</strong>.
+              </p>
+              <p style="margin: 0;">
+                &copy; {current_date} {sender_name}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+

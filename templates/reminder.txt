@@ -1,0 +1,27 @@
+WORK PROGRESS & ACTION ITEMS REMINDER
+============================================================
+Company: {company}
+Project: {project_name}
+Transmission: #{sequence_num} of {daily_limit}
+Date: {current_date} {current_time}
+============================================================
+
+Dear {client_name},
+
+This is a regular scheduled work notification regarding your ongoing campaign for {project_name}.
+
+CURRENT WORK ITEM & MILESTONE:
+------------------------------------------------------------
+{reminder_note}
+------------------------------------------------------------
+
+If you have questions, updates, or need immediate revisions on this deliverable, please reply directly to this email or reach out to your designated account manager.
+
+Best regards,
+{sender_name}
+Marketing Operations & Client Relations
+
+---
+Sent to {client_email}.
+All rights reserved.
+
