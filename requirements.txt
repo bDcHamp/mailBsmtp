@@ -1,5 +1,9 @@
-# Zero mandatory dependencies required. The core utility runs entirely on Python standard library (Python 3.8+).
-# Optional dependencies for enhanced CLI experience:
+# Desktop Application UI & System Tray Requirements
+customtkinter>=6.0.0
+pystray>=0.19.5
+pillow>=10.0.0
+pyinstaller>=6.0.0
+
+# Optional CLI Enhancements
 python-dotenv>=1.0.0
 rich>=13.0.0
-
