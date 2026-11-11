@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Marketing Mailer{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Top Status & Control Banner Card -->
+  <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 shadow-md">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center space-x-3 mb-2">
+          <span id="statusPill" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider {% if is_running %}bg-emerald-500/15 text-emerald-400 border border-emerald-500/30{% else %}bg-red-500/15 text-red-400 border border-red-500/30{% endif %}">
+            <span class="w-2 h-2 rounded-full mr-2 {% if is_running %}bg-emerald-400 animate-pulse{% else %}bg-red-400{% endif %}"></span>
+            <span id="statusText">{% if is_running %}24/7 SERVICE ACTIVE{% else %}SERVICE PAUSED{% endif %}</span>
+          </span>
+          <span class="text-xs text-slate-400">Contabo VPS Worker</span>
+        </div>
+        <p id="statusDesc" class="text-sm text-slate-300">
+          {% if is_running %}
+          The 24/7 dispatcher is actively pacing and sending work reminders to clients.
+          {% else %}
+          The 24/7 engine is currently standing by. Click Start to resume work reminders.
+          {% endif %}
+        </p>
+      </div>
+
+      <div>
+        <button id="toggleBtn" onclick="toggleEngine()"
+                class="w-full md:w-auto px-6 py-3 rounded-xl font-semibold text-sm transition-all shadow-md active:scale-95 flex items-center justify-center space-x-2 {% if is_running %}bg-red-600 hover:bg-red-500 text-white shadow-red-600/20{% else %}bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20{% endif %}">
+          <span id="toggleIcon">{% if is_running %}⏸{% else %}▶{% endif %}</span>
+          <span id="toggleLabel">{% if is_running %}Pause Service{% else %}Start 24/7 Reminders{% endif %}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 KPI Stat Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    
+    <!-- 1. Active Clients -->
+    <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 shadow-sm">
+      <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+        <span>Active Clients</span>
+        <span class="text-base">👥</span>
+      </div>
+      <div id="statClients" class="text-3xl font-bold text-white">{{ active_clients }}</div>
+      <div class="text-xs text-slate-400 mt-1">Managed in roster</div>
+    </div>
+
+    <!-- 2. Delivered Today -->
+    <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 shadow-sm">
+      <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+        <span>Delivered (24h)</span>
+        <span class="text-base">✉️</span>
+      </div>
+      <div id="statSent" class="text-3xl font-bold text-white">{{ "{:,}".format(total_sent) }}</div>
+      <div class="text-xs text-slate-400 mt-1">Rolling 24h count</div>
+    </div>
+
+    <!-- 3. Quota Remaining -->
+    <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 shadow-sm">
+      <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+        <span>Quota Remaining</span>
+        <span class="text-base">⏳</span>
+      </div>
+      <div id="statQuota" class="text-3xl font-bold text-white">{{ "{:,}".format(total_remaining) }}</div>
+      <div class="text-xs text-slate-400 mt-1">Available today</div>
+    </div>
+
+    <!-- 4. Webmail Relay -->
+    <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 shadow-sm">
+      <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+        <span>Webmail Relay</span>
+        <span class="text-base">⚡</span>
+      </div>
+      <div class="text-2xl font-bold text-emerald-400 truncate">Connected</div>
+      <div class="text-xs text-slate-400 mt-1 truncate">{{ smtp_host }}:{{ smtp_port }}</div>
+    </div>
+
+  </div>
+
+  <!-- Live Activity Stream Card -->
+  <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 shadow-md">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-base font-bold text-white">Live Transmission Feed</h2>
+        <p class="text-xs text-slate-400">Real-time log of 24/7 reminder deliveries across your 30 clients</p>
+      </div>
+      <button onclick="clearFeed()" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg transition-colors">
+        Clear View
+      </button>
+    </div>
+
+    <!-- Terminal Box -->
+    <div id="logContainer" class="bg-slate-950/80 border border-slate-800 rounded-xl p-4 h-72 overflow-y-auto font-mono text-xs space-y-1.5 text-slate-300">
+      <div class="text-slate-500 italic">Connecting to activity feed...</div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  let isRunning = {{ 'true' if is_running else 'false' }};
+
+  async function toggleEngine() {
+    const btn = document.getElementById('toggleBtn');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/engine/toggle', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        isRunning = data.is_running;
+        updateUI(isRunning);
+      }
+    } catch (err) {
+      console.error('Toggle error:', err);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function updateUI(running) {
+    const pill = document.getElementById('statusPill');
+    const text = document.getElementById('statusText');
+    const desc = document.getElementById('statusDesc');
+    const btn = document.getElementById('toggleBtn');
+    const icon = document.getElementById('toggleIcon');
+    const label = document.getElementById('toggleLabel');
+
+    if (running) {
+      pill.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30";
+      text.textContent = "24/7 SERVICE ACTIVE";
+      desc.textContent = "The 24/7 dispatcher is actively pacing and sending work reminders to clients.";
+      btn.className = "w-full md:w-auto px-6 py-3 rounded-xl font-semibold text-sm transition-all shadow-md active:scale-95 flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-500 text-white shadow-red-600/20";
+      icon.textContent = "⏸";
+      label.textContent = "Pause Service";
+    } else {
+      pill.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-red-500/15 text-red-400 border border-red-500/30";
+      text.textContent = "SERVICE PAUSED";
+      desc.textContent = "The 24/7 engine is currently standing by. Click Start to resume work reminders.";
+      btn.className = "w-full md:w-auto px-6 py-3 rounded-xl font-semibold text-sm transition-all shadow-md active:scale-95 flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20";
+      icon.textContent = "▶";
+      label.textContent = "Start 24/7 Reminders";
+    }
+  }
+
+  async function pollStatsAndLogs() {
+    try {
+      // 1. Fetch stats
+      const sRes = await fetch('/api/stats');
+      const sData = await sRes.json();
+      document.getElementById('statClients').textContent = sData.active_clients;
+      document.getElementById('statSent').textContent = sData.total_sent.toLocaleString();
+      document.getElementById('statQuota').textContent = sData.total_remaining.toLocaleString();
+      if (sData.is_running !== isRunning) {
+        isRunning = sData.is_running;
+        updateUI(isRunning);
+      }
+
+      // 2. Fetch logs
+      const lRes = await fetch('/api/engine/logs');
+      const lData = await lRes.json();
+      renderLogs(lData.logs);
+    } catch (e) {
+      console.warn("Poll failed", e);
+    }
+  }
+
+  function renderLogs(logs) {
+    const container = document.getElementById('logContainer');
+    if (!logs || logs.length === 0) return;
+
+    container.innerHTML = logs.map(l => {
+      let colorClass = "text-slate-300";
+      if (l.level === "SUCCESS") colorClass = "text-emerald-400";
+      else if (l.level === "ERROR") colorClass = "text-red-400 font-semibold";
+      else if (l.level === "WARN") colorClass = "text-amber-400";
+
+      return `<div class="leading-relaxed"><span class="text-slate-500">[${l.time}]</span> <span class="${colorClass}">${escapeHtml(l.message)}</span></div>`;
+    }).join('');
+
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function clearFeed() {
+    document.getElementById('logContainer').innerHTML = '<div class="text-slate-500 italic">Feed cleared. Waiting for next event...</div>';
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Poll every 3 seconds
+  setInterval(pollStatsAndLogs, 3000);
+  pollStatsAndLogs();
+</script>
+{% endblock %}
+

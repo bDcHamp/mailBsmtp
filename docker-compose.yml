@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  marketing-mailer:
+    build: .
+    container_name: marketing-mailer-web
+    restart: always
+    ports:
+      # Bind to localhost 8085 on the Contabo host (safe from port conflicts)
+      - "127.0.0.1:8085:8085"
+    volumes:
+      # Persist SQLite database and client CSV across container updates
+      - ./data:/app/data
+      - ./.env:/app/.env
+    environment:
+      - PORT=8085
+      - HOST=0.0.0.0
+      - AUTO_START_ENGINE=true
+

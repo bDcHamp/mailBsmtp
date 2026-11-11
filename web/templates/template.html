@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Email Template & Live Preview - Marketing Mailer{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Top Controls Card -->
+  <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 shadow-md">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+      
+      <!-- Client Selector -->
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Preview with Client</label>
+        <select id="clientSelector" onchange="renderPreview()"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:ring-2 focus:ring-blue-500">
+          {% for c in clients %}
+          <option value="{{ c.client_id }}">{{ c.name }} ({{ c.company or c.email }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Subject Prefix -->
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Email Subject Line</label>
+        <input type="text" id="subjectInput" value="{{ default_subject }}" oninput="renderPreview()"
+               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:ring-2 focus:ring-blue-500">
+      </div>
+
+      <!-- Send Test Preview Button -->
+      <div class="flex items-end">
+        <button onclick="promptTestSend()"
+                class="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-all shadow-md shadow-blue-600/20 active:scale-95 flex items-center justify-center space-x-2">
+          <span>✉️</span>
+          <span>Send Test to Myself</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Live Rendered Preview Card -->
+  <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 shadow-md">
+    <div class="flex items-center justify-between mb-4 border-b border-slate-700/70 pb-3">
+      <div>
+        <h2 class="text-base font-bold text-white">Live Rendered Email Preview</h2>
+        <p class="text-xs text-slate-400">Dynamic preview showing real client interpolation and headers</p>
+      </div>
+
+      <div class="flex items-center space-x-2 bg-slate-900 p-1 rounded-xl border border-slate-700">
+        <button id="btnTextMode" onclick="setPreviewMode('text')" class="px-3 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white">
+          Readable Format
+        </button>
+        <button id="btnHtmlMode" onclick="setPreviewMode('html')" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white">
+          HTML Source
+        </button>
+      </div>
+    </div>
+
+    <!-- Metadata Header preview -->
+    <div class="bg-slate-900/60 rounded-xl p-3.5 text-xs font-mono text-slate-300 mb-4 border border-slate-800 space-y-1">
+      <div><span class="text-slate-500 font-semibold">SUBJECT:</span> <span id="hdrSubject" class="text-blue-300 font-bold"></span></div>
+      <div><span class="text-slate-500 font-semibold">FROM:   </span> <span id="hdrFrom"></span></div>
+      <div><span class="text-slate-500 font-semibold">TO:     </span> <span id="hdrTo" class="text-emerald-400"></span></div>
+      <div><span class="text-slate-500 font-semibold">DATE:   </span> <span id="hdrDate"></span></div>
+    </div>
+
+    <!-- Body Container -->
+    <div id="previewBodyContainer" class="bg-slate-950 border border-slate-800 rounded-xl p-5 min-h-[350px] font-mono text-xs text-slate-200 overflow-x-auto whitespace-pre-wrap leading-relaxed">
+      Loading preview...
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  let currentMode = 'text';
+  let cachedData = null;
+
+  async function renderPreview() {
+    const clientId = document.getElementById('clientSelector').value;
+    const subject = document.getElementById('subjectInput').value;
+
+    try {
+      const res = await fetch(`/api/template/render?client_id=${encodeURIComponent(clientId)}&subject=${encodeURIComponent(subject)}`);
+      cachedData = await res.json();
+
+      document.getElementById('hdrSubject').textContent = cachedData.subject;
+      document.getElementById('hdrFrom').textContent = cachedData.from;
+      document.getElementById('hdrTo').textContent = cachedData.to;
+      document.getElementById('hdrDate').textContent = cachedData.date;
+
+      updateBodyDisplay();
+    } catch (err) {
+      console.error("Preview render failed:", err);
+    }
+  }
+
+  function setPreviewMode(mode) {
+    currentMode = mode;
+    const btnText = document.getElementById('btnTextMode');
+    const btnHtml = document.getElementById('btnHtmlMode');
+
+    if (mode === 'text') {
+      btnText.className = "px-3 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white";
+      btnHtml.className = "px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white";
+    } else {
+      btnHtml.className = "px-3 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white";
+      btnText.className = "px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white";
+    }
+    updateBodyDisplay();
+  }
+
+  function updateBodyDisplay() {
+    if (!cachedData) return;
+    const container = document.getElementById('previewBodyContainer');
+    if (currentMode === 'text') {
+      container.textContent = cachedData.text;
+    } else {
+      container.textContent = cachedData.html;
+    }
+  }
+
+  async function promptTestSend() {
+    const recipient = prompt("Enter your email address to receive this live preview:", "");
+    if (!recipient || !recipient.includes("@")) return;
+
+    const clientId = document.getElementById('clientSelector').value;
+    const subject = document.getElementById('subjectInput').value;
+
+    try {
+      const res = await fetch('/api/template/send-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient, client_id: clientId, subject })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+      } else {
+        alert("Failed to send: " + data.error);
+      }
+    } catch (e) {
+      alert("Error: " + e);
+    }
+  }
+
+  // Initial render on load
+  renderPreview();
+</script>
+{% endblock %}
+

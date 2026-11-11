@@ -1,0 +1,36 @@
+# ==============================================================================
+# Systemd Service File for Marketing Mailer Web
+# Place in: /etc/systemd/system/marketing-mailer.service
+# Commands:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable marketing-mailer
+#   sudo systemctl start marketing-mailer
+#   sudo systemctl status marketing-mailer
+# ==============================================================================
+
+[Unit]
+Description=Marketing Mailer 24/7 Web Application & Reminder Dispatcher
+After=network.target
+
+[Service]
+Type=simple
+User=root
+# Replace with the absolute path to your cloned repository on the Contabo server
+WorkingDirectory=/var/www/MarketingMailer
+ExecStart=/usr/bin/python3 run_web.py --port 8085 --host 127.0.0.1
+Restart=always
+RestartSec=10
+
+# Security and Resource Limits
+LimitNOFILE=65535
+StandardOutput=journal
+StandardError=journal
+
+# Environment settings (or loads from .env in WorkingDirectory)
+Environment=PORT=8085
+Environment=HOST=127.0.0.1
+Environment=AUTO_START_ENGINE=true
+
+[Install]
+WantedBy=multi-user.target
+

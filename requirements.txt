@@ -1,9 +1,12 @@
+# Web Version & Server Requirements (Contabo VPS)
+flask>=3.0.0
+
 # Desktop Application UI & System Tray Requirements
 customtkinter>=6.0.0
 pystray>=0.19.5
 pillow>=10.0.0
 pyinstaller>=6.0.0
 
-# Optional CLI Enhancements
+# Optional Enhancements
 python-dotenv>=1.0.0
 rich>=13.0.0

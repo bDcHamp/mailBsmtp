@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Login - Marketing Mailer System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4">
+
+  <div class="max-w-md w-full">
+    <!-- Brand Header -->
+    <div class="text-center mb-8">
+      <div class="w-14 h-14 rounded-2xl bg-blue-600 mx-auto flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-blue-500/30 mb-4">
+        ⚡
+      </div>
+      <h1 class="text-2xl font-bold tracking-tight text-white">Marketing Mailer</h1>
+      <p class="text-sm text-slate-400 mt-1">24/7 Client Reminder System &bull; Staff Access</p>
+    </div>
+
+    <!-- Login Card -->
+    <div class="bg-slate-800 border border-slate-700/80 rounded-2xl p-8 shadow-xl">
+      {% if error %}
+      <div class="mb-5 p-3 rounded-lg bg-red-950/60 border border-red-500/50 text-red-200 text-sm flex items-center space-x-2">
+        <span>⚠️</span>
+        <span>{{ error }}</span>
+      </div>
+      {% endif %}
+
+      <form method="POST" action="/login" class="space-y-5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Username</label>
+          <input type="text" name="username" value="admin" required
+                 class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Password</label>
+          <input type="password" name="password" required placeholder="••••••••"
+                 class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+        </div>
+
+        <button type="submit"
+                class="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-all shadow-md shadow-blue-600/25 active:scale-[0.99] mt-2">
+          Sign In to Dashboard
+        </button>
+      </form>
+
+      <div class="mt-6 pt-5 border-t border-slate-700/80 text-center">
+        <p class="text-xs text-slate-500">
+          Hosted on Contabo Cloud Server &bull; SSL Encrypted
+        </p>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
+

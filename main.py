@@ -146,6 +146,11 @@ def main():
     # Command: gui
     parser_gui = subparsers.add_parser("gui", help="Launch the Desktop GUI Application")
 
+    # Command: web
+    parser_web = subparsers.add_parser("web", help="Start the Web Dashboard Server (for Contabo VPS / Browser)")
+    parser_web.add_argument("-p", "--port", type=int, default=8085, help="Port to listen on (default: 8085)")
+    parser_web.add_argument("-H", "--host", default="0.0.0.0", help="Host IP to bind (default: 0.0.0.0)")
+
     # Command: start
     parser_start = subparsers.add_parser("start", help="Start the 24/7 continuous work reminder dispatcher (headless CLI)")
     
@@ -164,7 +169,12 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "start":
+    if args.command == "web":
+        from web.app import create_app
+        app = create_app()
+        print(f"Starting Marketing Mailer Web Server on http://{args.host}:{args.port}")
+        app.run(host=args.host, port=args.port)
+    elif args.command == "start":
         cmd_start(args)
     elif args.command == "status":
         cmd_status(args)

@@ -125,6 +125,59 @@ To generate a standalone `MarketingMailer.exe` that can be copied to any office 
 
 ---
 
+### Option C: Hosting the Web Version on a Contabo VPS (with Custom Domain)
+
+You can run the web dashboard on your Contabo server alongside your existing applications without port conflicts:
+
+#### 1. Clone & Install on Contabo VPS
+```bash
+git clone https://github.com/SagarBiswas-MultiHAT/MarketingMailer.git /var/www/MarketingMailer
+cd /var/www/MarketingMailer
+pip install -r requirements.txt
+```
+
+#### 2. Configure `.env`
+Set your Webmail credentials and web admin password:
+```ini
+SMTP_HOST=mail.youragency.com
+SMTP_PORT=465
+SMTP_USER=reminders@youragency.com
+SMTP_PASSWORD=YourPassword
+
+WEB_ADMIN_USER=admin
+WEB_ADMIN_PASSWORD=YourSecurePassword
+PORT=8085
+```
+
+#### 3. Enable 24/7 Systemd Background Service
+```bash
+sudo cp deployment/marketing-mailer.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable marketing-mailer
+sudo systemctl start marketing-mailer
+```
+
+#### 4. Connect Your Domain with Nginx & Let's Encrypt SSL
+1. Set up your domain's DNS A record pointing to your Contabo server IP (e.g. `reminders.yourdomain.com`).
+2. Copy the Nginx configuration:
+   ```bash
+   sudo cp deployment/nginx-marketing-mailer.conf /etc/nginx/sites-available/marketing-mailer.conf
+   ```
+3. Update `server_name reminders.yourdomain.com;` inside `/etc/nginx/sites-available/marketing-mailer.conf`.
+4. Link and reload Nginx:
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/marketing-mailer.conf /etc/nginx/sites-enabled/
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+5. Install free SSL with Certbot:
+   ```bash
+   sudo certbot --nginx -d reminders.yourdomain.com
+   ```
+6. Access your secure dashboard at `https://reminders.yourdomain.com` from anywhere!
+
+---
+
 ## Configuration Guide
 
 ### 1. Webmail SMTP Settings
