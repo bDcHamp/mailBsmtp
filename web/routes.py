@@ -2,17 +2,36 @@
 Web Application Routes and JSON APIs for Marketing Mailer.
 """
 
+import csv
 from datetime import datetime
+from io import StringIO
 import os
 from pathlib import Path
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    Response,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
-from mailer.clients import sync_clients
+from mailer.clients import parse_csv_stream, sync_clients
 from mailer.config import BASE_DIR, Config
 from mailer.database import (
+    create_group,
+    delete_client,
+    delete_group,
     get_active_clients,
     get_all_clients,
+    get_all_groups,
     get_client_summary_stats,
+    get_group,
+    toggle_group_active,
+    update_group,
     upsert_client,
 )
 from mailer.smtp_client import SMTPClient
@@ -64,6 +83,7 @@ def logout():
 @login_required
 def dashboard():
     stats = get_client_summary_stats(Config.DATABASE_PATH, Config.WINDOW_HOURS)
+    groups = get_all_groups(Config.DATABASE_PATH)
     active_count = sum(1 for s in stats if s["is_active"])
     total_sent = sum(s["sent_24h"] for s in stats)
     total_remaining = sum(s["remaining_quota"] for s in stats if s["is_active"])
@@ -73,6 +93,8 @@ def dashboard():
         active_tab="dashboard",
         is_running=engine_manager.is_running,
         active_clients=active_count,
+        total_clients=len(stats),
+        total_groups=len(groups),
         total_sent=total_sent,
         total_remaining=total_remaining,
         smtp_host=Config.SMTP_HOST,
@@ -84,6 +106,7 @@ def dashboard():
 @login_required
 def clients():
     stats = get_client_summary_stats(Config.DATABASE_PATH, Config.WINDOW_HOURS)
+    groups = get_all_groups(Config.DATABASE_PATH)
     all_clients_map = {c["client_id"]: c for c in get_all_clients(Config.DATABASE_PATH)}
 
     enriched = []
@@ -102,9 +125,17 @@ def clients():
             "remaining_quota": s["remaining_quota"],
             "is_active": s["is_active"],
             "last_sent": s["last_sent"],
+            "group_id": s.get("group_id"),
+            "group_name": s.get("group_name"),
+            "group_is_active": s.get("group_is_active", 1),
         })
 
-    return render_template("clients.html", active_tab="clients", clients=enriched)
+    return render_template(
+        "clients.html",
+        active_tab="clients",
+        clients=enriched,
+        groups=groups,
+    )
 
 
 @main_bp.route("/template")
@@ -137,6 +168,7 @@ def settings_view():
 @login_required
 def api_stats():
     stats = get_client_summary_stats(Config.DATABASE_PATH, Config.WINDOW_HOURS)
+    groups = get_all_groups(Config.DATABASE_PATH)
     active_count = sum(1 for s in stats if s["is_active"])
     total_sent = sum(s["sent_24h"] for s in stats)
     total_remaining = sum(s["remaining_quota"] for s in stats if s["is_active"])
@@ -144,6 +176,8 @@ def api_stats():
     return jsonify({
         "is_running": engine_manager.is_running,
         "active_clients": active_count,
+        "total_clients": len(stats),
+        "total_groups": len(groups),
         "total_sent": total_sent,
         "total_remaining": total_remaining,
         "smtp_host": Config.SMTP_HOST,
@@ -168,6 +202,80 @@ def api_engine_logs():
     return jsonify({"logs": logs})
 
 
+# -------------------------------------------------------------
+# Group APIs
+# -------------------------------------------------------------
+
+@main_bp.route("/api/groups", methods=["GET"])
+@login_required
+def api_groups_list():
+    groups = get_all_groups(Config.DATABASE_PATH)
+    return jsonify({"success": True, "groups": groups})
+
+
+@main_bp.route("/api/groups/create", methods=["POST"])
+@login_required
+def api_group_create():
+    data = request.json or request.form
+    name = data.get("name", "").strip()
+    description = data.get("description", "").strip()
+    if not name:
+        return jsonify({"success": False, "error": "Group name is required"}), 400
+    try:
+        gid = create_group(name, description, Config.DATABASE_PATH)
+        return jsonify({"success": True, "group_id": gid, "message": f"Group '{name}' created"})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Could not create group (name may already exist): {str(e)}"}), 400
+
+
+@main_bp.route("/api/groups/update", methods=["POST"])
+@login_required
+def api_group_update():
+    data = request.json or request.form
+    try:
+        group_id = int(data.get("group_id"))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid group ID"}), 400
+    name = data.get("name", "").strip()
+    description = data.get("description", "").strip()
+    if not name:
+        return jsonify({"success": False, "error": "Group name is required"}), 400
+
+    update_group(group_id, name, description, Config.DATABASE_PATH)
+    return jsonify({"success": True, "message": "Group updated"})
+
+
+@main_bp.route("/api/groups/toggle", methods=["POST"])
+@login_required
+def api_group_toggle():
+    data = request.json or request.form
+    try:
+        group_id = int(data.get("group_id"))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid group ID"}), 400
+
+    new_state = toggle_group_active(group_id, Config.DATABASE_PATH)
+    return jsonify({"success": True, "is_active": new_state})
+
+
+@main_bp.route("/api/groups/delete", methods=["POST"])
+@login_required
+def api_group_delete():
+    data = request.json or request.form
+    try:
+        group_id = int(data.get("group_id"))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid group ID"}), 400
+    delete_clients = data.get("delete_clients", False) in (True, "true", 1, "1")
+
+    delete_group(group_id, delete_clients, Config.DATABASE_PATH)
+    return jsonify({"success": True, "message": "Group deleted"})
+
+
+# -------------------------------------------------------------
+# Client CRUD & File Handling APIs
+# -------------------------------------------------------------
+
 @main_bp.route("/api/clients/add", methods=["POST"])
 @login_required
 def api_client_add():
@@ -175,6 +283,15 @@ def api_client_add():
     email = data.get("email", "").strip()
     if not email or "@" not in email:
         return jsonify({"success": False, "error": "Invalid email address"}), 400
+
+    group_id = data.get("group_id")
+    if group_id in ("", None, "null", "None", "ungrouped"):
+        group_id = None
+    else:
+        try:
+            group_id = int(group_id)
+        except (ValueError, TypeError):
+            group_id = None
 
     client_data = {
         "client_id": email.lower(),
@@ -185,6 +302,7 @@ def api_client_add():
         "reminder_note": data.get("reminder_note", "").strip() or "Regular work progress reminder.",
         "daily_limit": int(data.get("daily_limit", 100)),
         "is_active": 1 if data.get("is_active", True) in (True, 1, "1", "true") else 0,
+        "group_id": group_id,
     }
     upsert_client(client_data, Config.DATABASE_PATH)
     return jsonify({"success": True})
@@ -194,6 +312,34 @@ def api_client_add():
 @login_required
 def api_client_update():
     return api_client_add()
+
+
+@main_bp.route("/api/clients/delete", methods=["POST"])
+@login_required
+def api_client_delete():
+    data = request.json or request.form
+    client_id = data.get("client_id", "").strip().lower()
+    if not client_id:
+        return jsonify({"success": False, "error": "Client ID required"}), 400
+
+    deleted = delete_client(client_id, Config.DATABASE_PATH)
+    if deleted:
+        return jsonify({"success": True, "message": "Client deleted successfully"})
+    return jsonify({"success": False, "error": "Client not found or could not be deleted"}), 404
+
+
+@main_bp.route("/api/clients/bulk-delete", methods=["POST"])
+@login_required
+def api_clients_bulk_delete():
+    data = request.json or request.form
+    client_ids = data.get("client_ids", [])
+    if isinstance(client_ids, str):
+        client_ids = [c.strip().lower() for c in client_ids.split(",") if c.strip()]
+    count = 0
+    for cid in client_ids:
+        if delete_client(cid, Config.DATABASE_PATH):
+            count += 1
+    return jsonify({"success": True, "count": count})
 
 
 @main_bp.route("/api/clients/toggle-active", methods=["POST"])
@@ -212,12 +358,92 @@ def api_client_toggle_active():
     return jsonify({"success": True, "is_active": bool(client_rec["is_active"])})
 
 
+@main_bp.route("/api/clients/upload-csv", methods=["POST"])
+@login_required
+def api_client_upload_csv():
+    """Accept multipart CSV file upload and bulk import into SQLite."""
+    if "file" not in request.files:
+        return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"success": False, "error": "Empty filename"}), 400
+
+    group_id = request.form.get("group_id")
+    if group_id in ("", None, "null", "all", "ungrouped"):
+        target_group_id = None
+    else:
+        try:
+            target_group_id = int(group_id)
+        except ValueError:
+            target_group_id = None
+
+    try:
+        content = file.stream.read().decode("utf-8-sig", errors="ignore")
+        stream = StringIO(content)
+        clients_list, skipped = parse_csv_stream(stream, default_group_id=target_group_id)
+
+        imported = 0
+        for c in clients_list:
+            upsert_client(c, Config.DATABASE_PATH)
+            imported += 1
+
+        return jsonify({
+            "success": True,
+            "imported": imported,
+            "skipped": skipped,
+            "message": f"Successfully imported {imported} clients ({skipped} skipped/invalid)."
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Failed to parse CSV: {str(e)}"}), 500
+
+
+@main_bp.route("/api/clients/export-csv")
+@login_required
+def api_clients_export_csv():
+    """Export clients to a CSV download, optionally filtered by group_id."""
+    group_id = request.args.get("group_id")
+    target_group_id = None
+    if group_id and group_id not in ("all", "null", ""):
+        try:
+            target_group_id = int(group_id)
+        except ValueError:
+            pass
+
+    clients = get_all_clients(Config.DATABASE_PATH, group_id=target_group_id)
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["name", "email", "company", "project_name", "reminder_note", "daily_limit", "is_active", "group_name"])
+    for c in clients:
+        writer.writerow([
+            c["name"],
+            c["email"],
+            c.get("company", ""),
+            c.get("project_name", ""),
+            c.get("reminder_note", ""),
+            c.get("daily_limit", 100),
+            c.get("is_active", 1),
+            c.get("group_name", "") or "Ungrouped",
+        ])
+
+    filename = f"clients_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
 @main_bp.route("/api/clients/sync-csv", methods=["POST"])
 @login_required
 def api_clients_sync_csv():
     count = sync_clients(Config.DATABASE_PATH, Config.CLIENTS_CSV_PATH, Config.CLIENTS_JSON_PATH)
     return jsonify({"success": True, "count": count})
 
+
+# -------------------------------------------------------------
+# Template & Settings APIs
+# -------------------------------------------------------------
 
 @main_bp.route("/api/template/render")
 @login_required
@@ -397,6 +623,7 @@ GLOBAL_DISPATCH_DELAY={delay}
 # Web Dashboard Authentication
 WEB_ADMIN_USER={os.getenv('WEB_ADMIN_USER', 'admin')}
 WEB_ADMIN_PASSWORD={os.getenv('WEB_ADMIN_PASSWORD', 'admin123')}
+AUTO_START_ENGINE=false
 """
     env_path = BASE_DIR / ".env"
     try:
@@ -404,4 +631,3 @@ WEB_ADMIN_PASSWORD={os.getenv('WEB_ADMIN_PASSWORD', 'admin123')}
         return jsonify({"success": True, "message": "Settings saved successfully!"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
-

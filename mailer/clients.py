@@ -4,10 +4,11 @@ Loads client records from user-friendly CSV or JSON files into SQLite.
 """
 
 import csv
+import io
 import json
 from pathlib import Path
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from mailer.database import upsert_client
 
@@ -35,44 +36,67 @@ def create_sample_csv(csv_path: Path):
         writer.writerows(sample_rows)
 
 
-def load_from_csv(csv_path: Path) -> List[Dict[str, Any]]:
+def parse_csv_stream(stream: io.TextIOBase, default_group_id: Optional[int] = None) -> Tuple[List[Dict[str, Any]], int]:
+    """
+    Parse a CSV text stream.
+    Returns (clients_list, skipped_count).
+    """
+    reader = csv.DictReader(stream)
+    clients = []
+    skipped = 0
+
+    for row in reader:
+        # Match case-insensitive keys
+        normalized_row = {k.strip().lower() if k else "": v for k, v in row.items()}
+        email = normalized_row.get("email", "").strip()
+        if not email or not is_valid_email(email):
+            skipped += 1
+            continue
+
+        client_id = normalized_row.get("client_id", "").strip() or email.lower()
+        name = normalized_row.get("name", "").strip() or email.split("@")[0].title()
+        company = normalized_row.get("company", "").strip()
+        project_name = normalized_row.get("project_name", "").strip() or "Marketing Campaign"
+        reminder_note = normalized_row.get("reminder_note", "").strip() or "General work progress and milestone reminder."
+
+        try:
+            daily_limit = int(normalized_row.get("daily_limit", "100"))
+        except (ValueError, TypeError):
+            daily_limit = 100
+
+        is_active_val = str(normalized_row.get("is_active", "1")).strip().lower()
+        is_active = 1 if is_active_val in ("1", "true", "yes", "active") else 0
+
+        group_id = default_group_id
+        if "group_id" in normalized_row and normalized_row["group_id"]:
+            try:
+                group_id = int(normalized_row["group_id"])
+            except (ValueError, TypeError):
+                pass
+
+        clients.append({
+            "client_id": client_id,
+            "name": name,
+            "email": email,
+            "company": company,
+            "project_name": project_name,
+            "reminder_note": reminder_note,
+            "daily_limit": daily_limit,
+            "is_active": is_active,
+            "group_id": group_id
+        })
+
+    return clients, skipped
+
+
+def load_from_csv(csv_path: Path, default_group_id: Optional[int] = None) -> List[Dict[str, Any]]:
     """Parse clients from CSV file."""
     if not csv_path.is_file():
         return []
 
-    clients = []
     with open(csv_path, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            email = row.get("email", "").strip()
-            if not email or not is_valid_email(email):
-                continue
-            
-            client_id = row.get("client_id", "").strip() or email.lower()
-            name = row.get("name", "").strip() or email.split("@")[0].title()
-            company = row.get("company", "").strip()
-            project_name = row.get("project_name", "").strip() or "Marketing Campaign"
-            reminder_note = row.get("reminder_note", "").strip() or "General work progress and milestone reminder."
-            
-            try:
-                daily_limit = int(row.get("daily_limit", "100"))
-            except ValueError:
-                daily_limit = 100
-                
-            is_active_val = str(row.get("is_active", "1")).strip().lower()
-            is_active = 1 if is_active_val in ("1", "true", "yes", "active") else 0
-
-            clients.append({
-                "client_id": client_id,
-                "name": name,
-                "email": email,
-                "company": company,
-                "project_name": project_name,
-                "reminder_note": reminder_note,
-                "daily_limit": daily_limit,
-                "is_active": is_active
-            })
-    return clients
+        clients, _ = parse_csv_stream(f, default_group_id=default_group_id)
+        return clients
 
 
 def load_from_json(json_path: Path) -> List[Dict[str, Any]]:
@@ -98,7 +122,8 @@ def load_from_json(json_path: Path) -> List[Dict[str, Any]]:
                     "project_name": item.get("project_name", "").strip() or "Marketing Campaign",
                     "reminder_note": item.get("reminder_note", "").strip() or "General work progress reminder.",
                     "daily_limit": int(item.get("daily_limit", 100)),
-                    "is_active": 1 if item.get("is_active", True) else 0
+                    "is_active": 1 if item.get("is_active", True) else 0,
+                    "group_id": item.get("group_id")
                 })
             return clients
     except Exception:
@@ -127,4 +152,3 @@ def sync_clients(db_path: Path, csv_path: Path, json_path: Path) -> int:
         upsert_client(c, db_path)
 
     return len(clients)
-

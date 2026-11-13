@@ -1,35 +1,128 @@
 {% extends "base.html" %}
 
-{% block title %}Client Roster - Marketing Mailer{% endblock %}
+{% block title %}Clients & Campaign Groups - Marketing Mailer{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
 
-  <!-- Header & Actions Bar Card -->
+  <!-- Header & Control Bar -->
   <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 shadow-md">
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
       
       <!-- Search Input -->
       <div class="relative flex-1 max-w-md">
         <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
           🔍
         </span>
-        <input type="text" id="clientSearch" placeholder="Search clients by name, email, or company..."
+        <input type="text" id="clientSearch" placeholder="Search by name, email, company, group..."
                class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
       </div>
 
       <!-- Action Buttons -->
-      <div class="flex items-center space-x-3">
-        <button onclick="openModal()" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-all shadow-md shadow-blue-600/20 active:scale-95 flex items-center space-x-1.5">
+      <div class="flex flex-wrap items-center gap-2.5">
+        <button onclick="openUploadModal()" class="px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/20 active:scale-95 flex items-center space-x-1.5">
+          <span>📤</span>
+          <span>Upload CSV</span>
+        </button>
+
+        <a id="exportCsvBtn" href="/api/clients/export-csv" class="px-3.5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium text-sm transition-colors flex items-center space-x-1.5">
+          <span>📥</span>
+          <span>Export CSV</span>
+        </a>
+
+        <button onclick="openGroupModal()" class="px-3.5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-sm transition-all shadow-md shadow-emerald-700/20 active:scale-95 flex items-center space-x-1.5">
+          <span>📁</span>
+          <span>New Group</span>
+        </button>
+
+        <button onclick="openClientModal()" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-all shadow-md shadow-blue-600/20 active:scale-95 flex items-center space-x-1.5">
           <span>+</span>
           <span>Add Client</span>
         </button>
-        <button onclick="syncCsv()" class="px-4 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium text-sm transition-colors flex items-center space-x-1.5">
-          <span>🔄</span>
-          <span>Sync CSV</span>
-        </button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Campaign Groups Navigation Bar -->
+  <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-4 shadow-md">
+    <div class="flex items-center justify-between mb-3 px-1">
+      <div class="flex items-center space-x-2">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Campaign Groups</span>
+        <span class="text-xs text-slate-500">• Click a group to filter or toggle its 24/7 reminder state</span>
+      </div>
+    </div>
+
+    <!-- Group Filter Pills / Tabs -->
+    <div class="flex items-center gap-2 overflow-x-auto pb-1" id="groupTabsContainer">
+      
+      <!-- All Clients Tab -->
+      <button onclick="filterByGroup('all', this)"
+              data-group-id="all"
+              class="group-tab px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 bg-blue-600 text-white shadow-sm">
+        <span>🌟 All Clients</span>
+        <span class="px-1.5 py-0.5 rounded-full bg-blue-800/80 text-[10px]">{{ clients|length }}</span>
+      </button>
+
+      <!-- Custom Groups -->
+      {% for g in groups %}
+      <div class="group-tab-wrapper inline-flex items-center rounded-xl bg-slate-900 border border-slate-700 hover:border-slate-600 transition-all p-1">
+        <button onclick="filterByGroup('{{ g.id }}', this)"
+                data-group-id="{{ g.id }}"
+                class="group-tab px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white flex items-center space-x-2">
+          <span>📁 {{ g.name }}</span>
+          <span class="px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-400 font-bold">{{ g.client_count }}</span>
+        </button>
+
+        <!-- Toggle Group Active / Paused Button -->
+        <button onclick="toggleGroupActive({{ g.id }}, '{{ g.name|escape }}')"
+                title="{% if g.is_active %}Turn off group (Pauses all {{ g.client_count }} clients){% else %}Turn on group (Activates all {{ g.client_count }} clients){% endif %}"
+                class="px-2 py-1 ml-1 rounded-md text-[11px] font-bold transition-colors {% if g.is_active %}bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/50{% else %}bg-amber-950/70 hover:bg-amber-900 text-amber-300 border border-amber-700/50{% endif %}">
+          {% if g.is_active %}🟢 ON{% else %}⏸ OFF{% endif %}
+        </button>
+
+        <!-- Edit Group Button -->
+        <button onclick='editGroup({{ g|tojson }})'
+                title="Edit Group"
+                class="p-1 hover:text-blue-400 text-slate-400 text-xs ml-0.5 transition-colors">
+          ✏️
+        </button>
+
+        <!-- Delete Group Button -->
+        <button onclick="confirmDeleteGroup({{ g.id }}, '{{ g.name|escape }}', {{ g.client_count }})"
+                title="Delete Group"
+                class="p-1 hover:text-red-400 text-slate-400 text-xs transition-colors">
+          🗑️
+        </button>
+      </div>
+      {% endfor %}
+
+      <!-- Ungrouped Tab -->
+      <button onclick="filterByGroup('ungrouped', this)"
+              data-group-id="ungrouped"
+              class="group-tab px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 bg-slate-900/60 border border-slate-700/60 transition-all flex items-center space-x-1.5">
+        <span>📂 Ungrouped</span>
+        <span class="px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-400" id="ungroupedCount">0</span>
+      </button>
+
+    </div>
+  </div>
+
+  <!-- Bulk Selection Action Banner (Hidden until rows checked) -->
+  <div id="bulkActionBar" class="bg-blue-950/80 border border-blue-600/40 rounded-2xl p-4 shadow-lg hidden flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <span class="text-sm font-semibold text-blue-200">
+        <span id="selectedCount">0</span> client(s) selected
+      </span>
+    </div>
+    <div class="flex items-center space-x-3">
+      <button onclick="confirmBulkDelete()" class="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs transition-colors flex items-center space-x-1.5">
+        <span>🗑️</span>
+        <span>Delete Selected</span>
+      </button>
+      <button onclick="clearBulkSelection()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors">
+        Cancel
+      </button>
     </div>
   </div>
 
@@ -39,23 +132,37 @@
       <table class="w-full text-left text-sm text-slate-300">
         <thead class="bg-slate-900/70 border-b border-slate-700 text-xs font-semibold uppercase tracking-wider text-slate-400">
           <tr>
-            <th class="px-6 py-4">Status</th>
+            <th class="px-4 py-4 w-10 text-center">
+              <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"
+                     class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer">
+            </th>
+            <th class="px-4 py-4">Status</th>
             <th class="px-6 py-4">Client Contact</th>
+            <th class="px-4 py-4">Group</th>
             <th class="px-6 py-4">Company & Scope</th>
             <th class="px-6 py-4">Current Work Milestone Note</th>
-            <th class="px-6 py-4 text-center">24h Quota</th>
+            <th class="px-4 py-4 text-center">24h Quota</th>
             <th class="px-6 py-4 text-right">Actions</th>
           </tr>
         </thead>
         <tbody id="clientsTableBody" class="divide-y divide-slate-700/60">
           {% for c in clients %}
           <tr class="hover:bg-slate-700/30 transition-colors client-row"
+              data-id="{{ c.client_id }}"
               data-name="{{ c.name|lower }}"
               data-email="{{ c.email|lower }}"
-              data-company="{{ c.company|lower }}">
+              data-company="{{ c.company|lower }}"
+              data-group-id="{{ c.group_id or 'ungrouped' }}"
+              data-group-name="{{ c.group_name|lower if c.group_name else 'ungrouped' }}">
             
+            <!-- Checkbox -->
+            <td class="px-4 py-4 text-center">
+              <input type="checkbox" class="client-checkbox w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                     data-client-id="{{ c.client_id }}" onchange="updateSelectedCount()">
+            </td>
+
             <!-- Status Pill -->
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-4 py-4 whitespace-nowrap">
               {% if c.is_active %}
               <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                 🟢 Active
@@ -73,6 +180,19 @@
               <div class="text-xs text-slate-400">{{ c.email }}</div>
             </td>
 
+            <!-- Group Badge -->
+            <td class="px-4 py-4 whitespace-nowrap">
+              {% if c.group_name %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-indigo-950/60 text-indigo-300 border border-indigo-700/40">
+                📁 {{ c.group_name }}
+              </span>
+              {% else %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                Ungrouped
+              </span>
+              {% endif %}
+            </td>
+
             <!-- Company & Scope -->
             <td class="px-6 py-4">
               <div class="font-medium text-slate-200">{{ c.company or 'Client Partner' }}</div>
@@ -87,18 +207,26 @@
             </td>
 
             <!-- Quota -->
-            <td class="px-6 py-4 text-center whitespace-nowrap">
+            <td class="px-4 py-4 text-center whitespace-nowrap">
               <span class="font-bold text-white">{{ c.sent_24h }}</span>
               <span class="text-xs text-slate-400">/ {{ c.daily_limit }}</span>
             </td>
 
-            <!-- Actions -->
-            <td class="px-6 py-4 text-right whitespace-nowrap space-x-2">
-              <button onclick='editClient({{ c|tojson }})' class="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors">
+            <!-- Actions (Edit, Pause/Resume, Delete) -->
+            <td class="px-6 py-4 text-right whitespace-nowrap space-x-1.5">
+              <button onclick='editClient({{ c|tojson }})' title="Edit client"
+                      class="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors">
                 ✏️ Edit
               </button>
-              <button onclick="toggleActive('{{ c.client_id }}')" class="text-xs font-semibold px-2.5 py-1.5 rounded-lg {% if c.is_active %}bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/50{% else %}bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-700/50{% endif %} transition-colors">
+
+              <button onclick="toggleActive('{{ c.client_id }}')" title="Pause or Resume reminders"
+                      class="text-xs font-semibold px-2.5 py-1.5 rounded-lg {% if c.is_active %}bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/50{% else %}bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-700/50{% endif %} transition-colors">
                 {% if c.is_active %}Pause{% else %}Resume{% endif %}
+              </button>
+
+              <button onclick="confirmDeleteClient('{{ c.client_id }}', '{{ c.name|escape }}')" title="Delete client permanently"
+                      class="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 border border-red-700/50 transition-colors">
+                🗑️ Delete
               </button>
             </td>
 
@@ -106,17 +234,36 @@
           {% endfor %}
         </tbody>
       </table>
+
+      <!-- Empty State -->
+      <div id="emptyState" class="py-12 text-center {% if clients %}hidden{% endif %}">
+        <div class="text-4xl mb-3">📭</div>
+        <h4 class="text-base font-bold text-slate-200">No clients found</h4>
+        <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Upload a CSV file or add your first client to start 24/7 scheduled work reminders.</p>
+        <div class="mt-4 flex justify-center gap-3">
+          <button onclick="openUploadModal()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold">
+            Upload CSV
+          </button>
+          <button onclick="openClientModal()" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold">
+            Add Client
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 
 </div>
 
-<!-- Add / Edit Client Modal -->
+
+<!-- ============================================================== -->
+<!-- 1. Add / Edit Client Modal -->
+<!-- ============================================================== -->
 <div id="clientModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
   <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
     <div class="flex items-center justify-between pb-4 border-b border-slate-700 mb-5">
       <h3 id="modalTitle" class="text-lg font-bold text-white">Add New Client</h3>
-      <button onclick="closeModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+      <button onclick="closeModal('clientModal')" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
     </div>
 
     <form id="clientForm" onsubmit="saveClient(event)" class="space-y-4">
@@ -130,6 +277,17 @@
         <label class="block text-xs font-semibold text-slate-300 mb-1">Email Address</label>
         <input type="email" id="mEmail" required placeholder="client@company.com"
                class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:ring-2 focus:ring-blue-500">
+      </div>
+
+      <!-- Campaign Group Dropdown -->
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-1">Campaign Group</label>
+        <select id="mGroup" class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:ring-2 focus:ring-blue-500">
+          <option value="">(No Group / Ungrouped)</option>
+          {% for g in groups %}
+          <option value="{{ g.id }}">{{ g.name }}</option>
+          {% endfor %}
+        </select>
       </div>
 
       <div class="grid grid-cols-2 gap-3">
@@ -163,47 +321,244 @@
       </div>
 
       <div class="flex justify-end space-x-3 pt-4 border-t border-slate-700 mt-5">
-        <button type="button" onclick="closeModal()" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-sm text-slate-300">Cancel</button>
-        <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-semibold text-white">Save Client</button>
+        <button type="button" onclick="closeModal('clientModal')" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-sm text-slate-300">Cancel</button>
+        <button type="submit" id="clientSaveBtn" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-semibold text-white">Save Client</button>
       </div>
     </form>
   </div>
 </div>
+
+
+<!-- ============================================================== -->
+<!-- 2. Upload CSV Modal -->
+<!-- ============================================================== -->
+<div id="uploadModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+    <div class="flex items-center justify-between pb-4 border-b border-slate-700 mb-5">
+      <div class="flex items-center space-x-2">
+        <span class="text-xl">📤</span>
+        <h3 class="text-lg font-bold text-white">Import Clients from CSV</h3>
+      </div>
+      <button onclick="closeModal('uploadModal')" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+    </div>
+
+    <form id="uploadForm" onsubmit="handleCsvUpload(event)" class="space-y-4">
+      
+      <!-- Target Group Selection -->
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-1">Assign Imported Clients To Group</label>
+        <select id="uploadGroupSelect" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:ring-2 focus:ring-indigo-500">
+          <option value="">(No Group / Ungrouped)</option>
+          {% for g in groups %}
+          <option value="{{ g.id }}">{{ g.name }}</option>
+          {% endfor %}
+        </select>
+        <p class="text-[11px] text-slate-400 mt-1">If the CSV itself has a `group_id` column, it will take precedence.</p>
+      </div>
+
+      <!-- File Dropzone -->
+      <div class="border-2 border-dashed border-slate-600 hover:border-indigo-500 rounded-2xl p-6 text-center cursor-pointer transition-colors bg-slate-900/40"
+           onclick="document.getElementById('csvFileInput').click()"
+           id="dropZone">
+        <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="updateFileLabel(this)">
+        <div class="text-3xl mb-2">📄</div>
+        <div class="text-sm font-semibold text-slate-200" id="fileLabel">Click to select CSV file, or drag and drop</div>
+        <div class="text-xs text-slate-400 mt-1">Standard format: name, email, company, project_name, reminder_note, daily_limit</div>
+      </div>
+
+      <!-- Sample Format Download Link -->
+      <div class="flex items-center justify-between text-xs text-slate-400 px-1">
+        <span>Need a template?</span>
+        <a href="/api/clients/export-csv" class="text-indigo-400 hover:underline">Download current CSV format</a>
+      </div>
+
+      <div class="flex justify-end space-x-3 pt-4 border-t border-slate-700 mt-5">
+        <button type="button" onclick="closeModal('uploadModal')" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-sm text-slate-300">Cancel</button>
+        <button type="submit" id="uploadSubmitBtn" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold text-white flex items-center space-x-1.5">
+          <span>Upload & Import</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ============================================================== -->
+<!-- 3. Create / Edit Group Modal -->
+<!-- ============================================================== -->
+<div id="groupModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+    <div class="flex items-center justify-between pb-4 border-b border-slate-700 mb-5">
+      <h3 id="groupModalTitle" class="text-lg font-bold text-white">Create Campaign Group</h3>
+      <button onclick="closeModal('groupModal')" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+    </div>
+
+    <form id="groupForm" onsubmit="saveGroup(event)" class="space-y-4">
+      <input type="hidden" id="gId" value="">
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-1">Group Name</label>
+        <input type="text" id="gName" required placeholder="e.g. VIP Retail Partners, Batch Alpha"
+               class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:ring-2 focus:ring-emerald-500">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-1">Description / Campaign Purpose</label>
+        <textarea id="gDesc" rows="3" placeholder="Targeted reminder schedule for Q3 retail accounts..."
+                  class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:ring-2 focus:ring-emerald-500"></textarea>
+      </div>
+
+      <div class="flex justify-end space-x-3 pt-4 border-t border-slate-700 mt-5">
+        <button type="button" onclick="closeModal('groupModal')" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-sm text-slate-300">Cancel</button>
+        <button type="submit" id="groupSaveBtn" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold text-white">Save Group</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ============================================================== -->
+<!-- 4. Universal Delete Confirmation Modal -->
+<!-- ============================================================== -->
+<div id="confirmModal" class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-slate-800 border border-red-700/60 rounded-2xl max-w-sm w-full p-6 shadow-2xl relative text-center">
+    <div class="w-12 h-12 rounded-full bg-red-950/80 text-red-400 border border-red-700/50 flex items-center justify-center mx-auto mb-3 text-xl">
+      🗑️
+    </div>
+    <h3 id="confirmTitle" class="text-base font-bold text-white mb-2">Confirm Delete</h3>
+    <p id="confirmDesc" class="text-xs text-slate-300 mb-6">Are you sure you want to permanently remove this record? This action cannot be undone.</p>
+
+    <!-- Optional checkbox for deleting clients when deleting a group -->
+    <div id="deleteGroupOptions" class="hidden mb-4 text-left p-3 rounded-xl bg-slate-900 border border-slate-700 text-xs">
+      <label class="flex items-center space-x-2 text-slate-300 cursor-pointer">
+        <input type="checkbox" id="deleteGroupClientsCheckbox" class="rounded bg-slate-800 border-slate-600 text-red-600">
+        <span>Also permanently delete all clients in this group</span>
+      </label>
+    </div>
+
+    <div class="flex justify-center space-x-3">
+      <button type="button" onclick="closeModal('confirmModal')" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-sm text-slate-300">Cancel</button>
+      <button type="button" id="confirmActionBtn" class="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-sm font-semibold text-white">Delete</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
+
 
 {% block extra_scripts %}
 <script>
+  let currentGroupFilter = 'all';
+
+  // Count ungrouped clients on load
+  function updateUngroupedBadge() {
+    let count = 0;
+    document.querySelectorAll('.client-row').forEach(row => {
+      if (row.dataset.groupId === 'ungrouped' || row.dataset.groupId === '') {
+        count++;
+      }
+    });
+    const badge = document.getElementById('ungroupedCount');
+    if (badge) badge.textContent = count;
+  }
+  updateUngroupedBadge();
+
   // Search filtering
   document.getElementById('clientSearch').addEventListener('input', function(e) {
-    const q = e.target.value.toLowerCase().trim();
+    applyFilters();
+  });
+
+  // Group tab filtering
+  function filterByGroup(groupId, tabElement) {
+    currentGroupFilter = groupId;
+    
+    // Update active tab styles
+    document.querySelectorAll('.group-tab').forEach(tab => {
+      tab.classList.remove('bg-blue-600', 'text-white', 'shadow-sm');
+      tab.classList.add('text-slate-300');
+    });
+
+    if (tabElement) {
+      tabElement.classList.add('bg-blue-600', 'text-white', 'shadow-sm');
+      tabElement.classList.remove('text-slate-300');
+    }
+
+    // Update export link to respect current group
+    const exportBtn = document.getElementById('exportCsvBtn');
+    if (groupId === 'all') {
+      exportBtn.href = '/api/clients/export-csv';
+    } else {
+      exportBtn.href = `/api/clients/export-csv?group_id=${groupId}`;
+    }
+
+    applyFilters();
+  }
+
+  function applyFilters() {
+    const q = document.getElementById('clientSearch').value.toLowerCase().trim();
+    let visibleCount = 0;
+
     document.querySelectorAll('.client-row').forEach(row => {
       const name = row.dataset.name;
       const email = row.dataset.email;
       const company = row.dataset.company;
-      if (!q || name.includes(q) || email.includes(q) || company.includes(q)) {
+      const groupName = row.dataset.groupName;
+      const rowGroupId = row.dataset.groupId;
+
+      // Group match
+      const groupMatches = (currentGroupFilter === 'all') || (rowGroupId === currentGroupFilter);
+
+      // Search query match
+      const textMatches = !q || name.includes(q) || email.includes(q) || company.includes(q) || groupName.includes(q);
+
+      if (groupMatches && textMatches) {
         row.style.display = '';
+        visibleCount++;
       } else {
         row.style.display = 'none';
       }
     });
+
+    // Toggle empty state
+    const emptyState = document.getElementById('emptyState');
+    if (visibleCount === 0) {
+      emptyState.classList.remove('hidden');
+    } else {
+      emptyState.classList.add('hidden');
+    }
+  }
+
+  // Modals management
+  function openModal(id) {
+    document.getElementById(id).classList.remove('hidden');
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+  }
+
+  // Close modals on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      ['clientModal', 'uploadModal', 'groupModal', 'confirmModal'].forEach(closeModal);
+    }
   });
 
-  // Modal handlers
-  function openModal() {
+  // -------------------------------------------------------------
+  // Client CRUD
+  // -------------------------------------------------------------
+  function openClientModal() {
     document.getElementById('modalTitle').textContent = 'Add New Client';
     document.getElementById('mName').value = '';
     document.getElementById('mEmail').value = '';
     document.getElementById('mEmail').disabled = false;
+    document.getElementById('mGroup').value = (currentGroupFilter !== 'all' && currentGroupFilter !== 'ungrouped') ? currentGroupFilter : '';
     document.getElementById('mCompany').value = '';
     document.getElementById('mProject').value = '';
     document.getElementById('mNote').value = 'Regular work progress and campaign monitoring.';
     document.getElementById('mLimit').value = '100';
     document.getElementById('mActive').checked = true;
-    document.getElementById('clientModal').classList.remove('hidden');
-  }
-
-  function closeModal() {
-    document.getElementById('clientModal').classList.add('hidden');
+    openModal('clientModal');
   }
 
   function editClient(client) {
@@ -211,19 +566,25 @@
     document.getElementById('mName').value = client.name || '';
     document.getElementById('mEmail').value = client.email || '';
     document.getElementById('mEmail').disabled = true;
+    document.getElementById('mGroup').value = client.group_id || '';
     document.getElementById('mCompany').value = client.company || '';
     document.getElementById('mProject').value = client.project_name || '';
     document.getElementById('mNote').value = client.reminder_note || '';
     document.getElementById('mLimit').value = client.daily_limit || 100;
     document.getElementById('mActive').checked = Boolean(client.is_active);
-    document.getElementById('clientModal').classList.remove('hidden');
+    openModal('clientModal');
   }
 
   async function saveClient(e) {
     e.preventDefault();
+    const btn = document.getElementById('clientSaveBtn');
+    btn.disabled = true;
+    btn.textContent = "Saving...";
+
     const payload = {
       name: document.getElementById('mName').value.trim(),
       email: document.getElementById('mEmail').value.trim(),
+      group_id: document.getElementById('mGroup').value,
       company: document.getElementById('mCompany').value.trim(),
       project_name: document.getElementById('mProject').value.trim(),
       reminder_note: document.getElementById('mNote').value.trim(),
@@ -239,12 +600,17 @@
       });
       const data = await res.json();
       if (data.success) {
-        window.location.reload();
+        showToast("Client saved successfully", "success");
+        setTimeout(() => window.location.reload(), 400);
       } else {
-        alert("Error: " + data.error);
+        showToast("Error: " + data.error, "error");
+        btn.disabled = false;
+        btn.textContent = "Save Client";
       }
     } catch (err) {
-      alert("Failed to save: " + err);
+      showToast("Network error: " + err, "error");
+      btn.disabled = false;
+      btn.textContent = "Save Client";
     }
   }
 
@@ -257,25 +623,298 @@
       });
       const data = await res.json();
       if (data.success) {
-        window.location.reload();
+        showToast(data.is_active ? "Client activated" : "Client paused", "info");
+        setTimeout(() => window.location.reload(), 300);
       }
     } catch (err) {
-      alert("Toggle error: " + err);
+      showToast("Toggle error: " + err, "error");
     }
   }
 
-  async function syncCsv() {
+  function confirmDeleteClient(clientId, clientName) {
+    document.getElementById('confirmTitle').textContent = `Delete ${clientName}?`;
+    document.getElementById('confirmDesc').textContent = `Are you sure you want to permanently delete this client and remove all their delivery logs?`;
+    document.getElementById('deleteGroupOptions').classList.add('hidden');
+
+    const btn = document.getElementById('confirmActionBtn');
+    btn.onclick = async function() {
+      btn.disabled = true;
+      btn.textContent = "Deleting...";
+      try {
+        const res = await fetch('/api/clients/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_id: clientId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Deleted ${clientName}`, "success");
+          setTimeout(() => window.location.reload(), 300);
+        } else {
+          showToast(data.error || "Failed to delete client", "error");
+          btn.disabled = false;
+        }
+      } catch (e) {
+        showToast("Error deleting: " + e, "error");
+        btn.disabled = false;
+      }
+    };
+
+    openModal('confirmModal');
+  }
+
+  // -------------------------------------------------------------
+  // Group CRUD & Toggle
+  // -------------------------------------------------------------
+  function openGroupModal() {
+    document.getElementById('groupModalTitle').textContent = 'Create Campaign Group';
+    document.getElementById('gId').value = '';
+    document.getElementById('gName').value = '';
+    document.getElementById('gDesc').value = '';
+    openModal('groupModal');
+  }
+
+  function editGroup(group) {
+    document.getElementById('groupModalTitle').textContent = 'Edit Campaign Group';
+    document.getElementById('gId').value = group.id;
+    document.getElementById('gName').value = group.name || '';
+    document.getElementById('gDesc').value = group.description || '';
+    openModal('groupModal');
+  }
+
+  async function saveGroup(e) {
+    e.preventDefault();
+    const btn = document.getElementById('groupSaveBtn');
+    btn.disabled = true;
+    btn.textContent = "Saving...";
+
+    const gid = document.getElementById('gId').value;
+    const url = gid ? '/api/groups/update' : '/api/groups/create';
+    const payload = {
+      group_id: gid,
+      name: document.getElementById('gName').value.trim(),
+      description: document.getElementById('gDesc').value.trim()
+    };
+
     try {
-      const res = await fetch('/api/clients/sync-csv', { method: 'POST' });
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
       const data = await res.json();
       if (data.success) {
-        alert(`Successfully synchronized ${data.count} clients from CSV!`);
-        window.location.reload();
+        showToast(data.message || "Group saved!", "success");
+        setTimeout(() => window.location.reload(), 400);
+      } else {
+        showToast(data.error || "Failed to save group", "error");
+        btn.disabled = false;
+        btn.textContent = "Save Group";
       }
-    } catch (err) {
-      alert("Sync error: " + err);
+    } catch (e) {
+      showToast("Error saving group: " + e, "error");
+      btn.disabled = false;
+      btn.textContent = "Save Group";
     }
+  }
+
+  async function toggleGroupActive(groupId, groupName) {
+    try {
+      const res = await fetch('/api/groups/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ group_id: groupId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.is_active ? `Group '${groupName}' turned ON (Clients Active)` : `Group '${groupName}' turned OFF (Clients Paused)`, "info");
+        setTimeout(() => window.location.reload(), 300);
+      }
+    } catch (e) {
+      showToast("Toggle error: " + e, "error");
+    }
+  }
+
+  function confirmDeleteGroup(groupId, groupName, clientCount) {
+    document.getElementById('confirmTitle').textContent = `Delete Group '${groupName}'?`;
+    document.getElementById('confirmDesc').textContent = `This will remove the group folder. You can choose whether to keep its ${clientCount} clients as ungrouped or delete them as well.`;
+    
+    const optionsBox = document.getElementById('deleteGroupOptions');
+    optionsBox.classList.remove('hidden');
+    document.getElementById('deleteGroupClientsCheckbox').checked = false;
+
+    const btn = document.getElementById('confirmActionBtn');
+    btn.onclick = async function() {
+      btn.disabled = true;
+      btn.textContent = "Deleting Group...";
+      const deleteClients = document.getElementById('deleteGroupClientsCheckbox').checked;
+
+      try {
+        const res = await fetch('/api/groups/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ group_id: groupId, delete_clients: deleteClients })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Deleted group '${groupName}'`, "success");
+          setTimeout(() => window.location.reload(), 300);
+        } else {
+          showToast(data.error || "Failed to delete group", "error");
+          btn.disabled = false;
+        }
+      } catch (e) {
+        showToast("Error: " + e, "error");
+        btn.disabled = false;
+      }
+    };
+
+    openModal('confirmModal');
+  }
+
+  // -------------------------------------------------------------
+  // CSV Upload
+  // -------------------------------------------------------------
+  function openUploadModal() {
+    document.getElementById('fileLabel').textContent = 'Click to select CSV file, or drag and drop';
+    document.getElementById('csvFileInput').value = '';
+    document.getElementById('uploadGroupSelect').value = (currentGroupFilter !== 'all' && currentGroupFilter !== 'ungrouped') ? currentGroupFilter : '';
+    openModal('uploadModal');
+  }
+
+  function updateFileLabel(input) {
+    if (input.files && input.files[0]) {
+      document.getElementById('fileLabel').textContent = `Selected: ${input.files[0].name} (${(input.files[0].size / 1024).toFixed(1)} KB)`;
+    }
+  }
+
+  async function handleCsvUpload(e) {
+    e.preventDefault();
+    const fileInput = document.getElementById('csvFileInput');
+    if (!fileInput.files || !fileInput.files[0]) {
+      showToast("Please choose a CSV file first", "error");
+      return;
+    }
+
+    const btn = document.getElementById('uploadSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = "Uploading & Parsing...";
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('group_id', document.getElementById('uploadGroupSelect').value);
+
+    try {
+      const res = await fetch('/api/clients/upload-csv', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message, "success");
+        setTimeout(() => window.location.reload(), 600);
+      } else {
+        showToast(data.error || "CSV upload failed", "error");
+        btn.disabled = false;
+        btn.textContent = "Upload & Import";
+      }
+    } catch (e) {
+      showToast("Network upload error: " + e, "error");
+      btn.disabled = false;
+      btn.textContent = "Upload & Import";
+    }
+  }
+
+  // Drag and drop setup for CSV
+  const dropZone = document.getElementById('dropZone');
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      dropZone.classList.add('border-indigo-500', 'bg-slate-900/80');
+    }, false);
+  });
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('border-indigo-500', 'bg-slate-900/80');
+    }, false);
+  });
+  dropZone.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    if (files.length > 0) {
+      document.getElementById('csvFileInput').files = files;
+      updateFileLabel(document.getElementById('csvFileInput'));
+    }
+  });
+
+  // -------------------------------------------------------------
+  // Bulk Actions
+  // -------------------------------------------------------------
+  function toggleSelectAll(masterCheckbox) {
+    const isChecked = masterCheckbox.checked;
+    document.querySelectorAll('.client-row').forEach(row => {
+      if (row.style.display !== 'none') {
+        const cb = row.querySelector('.client-checkbox');
+        if (cb) cb.checked = isChecked;
+      }
+    });
+    updateSelectedCount();
+  }
+
+  function updateSelectedCount() {
+    const selected = document.querySelectorAll('.client-checkbox:checked');
+    const bar = document.getElementById('bulkActionBar');
+    const countEl = document.getElementById('selectedCount');
+    
+    if (selected.length > 0) {
+      bar.classList.remove('hidden');
+      countEl.textContent = selected.length;
+    } else {
+      bar.classList.add('hidden');
+      document.getElementById('selectAllCheckbox').checked = false;
+    }
+  }
+
+  function clearBulkSelection() {
+    document.querySelectorAll('.client-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('selectAllCheckbox').checked = false;
+    updateSelectedCount();
+  }
+
+  function confirmBulkDelete() {
+    const selected = Array.from(document.querySelectorAll('.client-checkbox:checked')).map(cb => cb.dataset.clientId);
+    if (selected.length === 0) return;
+
+    document.getElementById('confirmTitle').textContent = `Delete ${selected.length} Clients?`;
+    document.getElementById('confirmDesc').textContent = `Are you sure you want to permanently delete these ${selected.length} clients and their delivery logs?`;
+    document.getElementById('deleteGroupOptions').classList.add('hidden');
+
+    const btn = document.getElementById('confirmActionBtn');
+    btn.onclick = async function() {
+      btn.disabled = true;
+      btn.textContent = "Deleting Selected...";
+      try {
+        const res = await fetch('/api/clients/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_ids: selected })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Deleted ${data.count} clients`, "success");
+          setTimeout(() => window.location.reload(), 400);
+        } else {
+          showToast(data.error || "Failed to delete clients", "error");
+          btn.disabled = false;
+        }
+      } catch (e) {
+        showToast("Error deleting: " + e, "error");
+        btn.disabled = false;
+      }
+    };
+
+    openModal('confirmModal');
   }
 </script>
 {% endblock %}
-

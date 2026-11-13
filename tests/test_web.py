@@ -2,6 +2,7 @@
 Automated unit and integration tests for Marketing Mailer Web Version.
 """
 
+import io
 import os
 from pathlib import Path
 import tempfile
@@ -9,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import unittest
 
 from mailer.config import Config
-from mailer.database import get_all_clients, init_db
+from mailer.database import get_active_clients, get_all_clients, get_all_groups, init_db
 from web.app import create_app
 from web.engine_service import engine_manager
 
@@ -90,6 +91,7 @@ class TestWebMailer(unittest.TestCase):
         stats = stats_resp.get_json()
         self.assertIn("active_clients", stats)
         self.assertIn("is_running", stats)
+        self.assertIn("total_groups", stats)
 
         # Add a client via API
         new_client = {
@@ -116,6 +118,109 @@ class TestWebMailer(unittest.TestCase):
         self.assertEqual(toggle_resp.status_code, 200)
         self.assertFalse(toggle_resp.get_json()["is_active"])
 
+    def test_client_delete(self):
+        """Verify deleting a client removes them from SQLite."""
+        self.client.post("/login", data={"username": "testadmin", "password": "testpass123"})
+        initial_count = len(get_all_clients(self.test_db))
+
+        # Add client
+        self.client.post("/api/clients/add", json={
+            "name": "To Delete",
+            "email": "delete_me@example.com"
+        })
+        self.assertEqual(len(get_all_clients(self.test_db)), initial_count + 1)
+
+        # Delete client
+        del_resp = self.client.post("/api/clients/delete", json={"client_id": "delete_me@example.com"})
+        self.assertEqual(del_resp.status_code, 200)
+        self.assertTrue(del_resp.get_json()["success"])
+
+        # Confirm gone
+        self.assertEqual(len(get_all_clients(self.test_db)), initial_count)
+
+    def test_groups_crud_and_turn_off_feature(self):
+        """
+        Verify creating groups, assigning clients, and turning off a group
+        so that active reminders are stopped for that group.
+        """
+        self.client.post("/login", data={"username": "testadmin", "password": "testpass123"})
+        initial_active = len(get_active_clients(self.test_db))
+
+        # 1. Create a group
+        g_resp = self.client.post("/api/groups/create", json={
+            "name": "Batch Beta Retail",
+            "description": "Retail partners"
+        })
+        self.assertEqual(g_resp.status_code, 200)
+        group_id = g_resp.get_json()["group_id"]
+        self.assertIsNotNone(group_id)
+
+        # 2. Add client assigned to this group
+        self.client.post("/api/clients/add", json={
+            "name": "Retailer A",
+            "email": "retailerA@example.com",
+            "group_id": group_id,
+            "is_active": 1
+        })
+
+        # Add an independent ungrouped client
+        self.client.post("/api/clients/add", json={
+            "name": "Ungrouped Client",
+            "email": "solo@example.com",
+            "is_active": 1
+        })
+
+        # Both should be active in get_active_clients
+        active = get_active_clients(self.test_db)
+        self.assertEqual(len(active), initial_active + 2)
+
+        # 3. Turn off group (toggle active to 0)
+        toggle_resp = self.client.post("/api/groups/toggle", json={"group_id": group_id})
+        self.assertEqual(toggle_resp.status_code, 200)
+        self.assertFalse(toggle_resp.get_json()["is_active"])
+
+        # Now only the ungrouped client and previous clients should be due for reminders!
+        active_after_pause = get_active_clients(self.test_db)
+        self.assertEqual(len(active_after_pause), initial_active + 1)
+        self.assertTrue(any(c["email"] == "solo@example.com" for c in active_after_pause))
+        self.assertFalse(any(c["email"] == "retailerA@example.com" for c in active_after_pause))
+
+        # 4. Turn group back on
+        self.client.post("/api/groups/toggle", json={"group_id": group_id})
+        self.assertEqual(len(get_active_clients(self.test_db)), initial_active + 2)
+
+        # 5. Delete group
+        del_g = self.client.post("/api/groups/delete", json={"group_id": group_id, "delete_clients": False})
+        self.assertEqual(del_g.status_code, 200)
+        groups = get_all_groups(self.test_db)
+        self.assertEqual(len(groups), 0)
+
+    def test_csv_upload_and_export(self):
+        """Verify multipart CSV upload and CSV export."""
+        self.client.post("/login", data={"username": "testadmin", "password": "testpass123"})
+
+        csv_content = """name,email,company,project_name,reminder_note,daily_limit
+Alice Smith,alice@example.com,Smith Co,PPC Ads,Review bids,100
+Bob Jones,bob@example.com,Jones LLC,SEO Growth,Approve copy,50
+Invalid Row,invalid-email-address,,,
+"""
+        data = {
+            "file": (io.BytesIO(csv_content.encode("utf-8")), "clients_import.csv")
+        }
+        upload_resp = self.client.post("/api/clients/upload-csv", data=data, content_type="multipart/form-data")
+        self.assertEqual(upload_resp.status_code, 200)
+        res_json = upload_resp.get_json()
+        self.assertTrue(res_json["success"])
+        self.assertEqual(res_json["imported"], 2)
+        self.assertEqual(res_json["skipped"], 1)
+
+        # Test export
+        export_resp = self.client.get("/api/clients/export-csv")
+        self.assertEqual(export_resp.status_code, 200)
+        self.assertIn("text/csv", export_resp.headers["Content-Type"])
+        self.assertIn(b"alice@example.com", export_resp.data)
+        self.assertIn(b"bob@example.com", export_resp.data)
+
     @patch.object(engine_manager, "start")
     @patch.object(engine_manager, "stop")
     def test_engine_toggle_api(self, mock_stop, mock_start):
@@ -138,4 +243,3 @@ class TestWebMailer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
