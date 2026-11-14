@@ -128,22 +128,36 @@
 
   <!-- Clients Data Table Card -->
   <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl shadow-md overflow-hidden">
-    <div class="overflow-x-auto">
-      <table class="w-full text-left text-sm text-slate-300">
-        <thead class="bg-slate-900/70 border-b border-slate-700 text-xs font-semibold uppercase tracking-wider text-slate-400">
+    
+    <!-- Table Header Toolbar -->
+    <div class="px-5 py-3.5 bg-slate-900/60 border-b border-slate-700/80 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-2 text-xs">
+        <span class="font-bold uppercase tracking-wider text-slate-300">Client Directory</span>
+        <span class="text-slate-600">•</span>
+        <span class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-blue-400 font-semibold" id="tableClientCountBadge">{{ clients|length }}</span>
+        <span class="text-slate-400">clients listed</span>
+      </div>
+      <div class="flex items-center space-x-3 text-xs text-slate-400">
+        <span class="hidden sm:inline text-slate-500">💡 Filter by search query or campaign group</span>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto custom-scrollbar">
+      <table class="w-full text-left text-sm text-slate-300 min-w-[1150px] border-collapse">
+        <thead class="bg-slate-900/90 border-b border-slate-700 text-xs font-semibold uppercase tracking-wider text-slate-400 sticky top-0 z-10 backdrop-blur-sm">
           <tr>
-            <th class="px-4 py-4 w-10 text-center">
+            <th class="px-4 py-3.5 w-12 text-center">
               <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"
                      class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer">
             </th>
-            <th class="px-4 py-4">Status</th>
-            <th class="px-5 py-4">Client Contact</th>
-            <th class="px-4 py-4">Group</th>
-            <th class="px-4 py-4">Templates & Rotation</th>
-            <th class="px-5 py-4">Company & Scope</th>
-            <th class="px-5 py-4">Current Milestone Note</th>
-            <th class="px-4 py-4 text-center">24h Quota</th>
-            <th class="px-5 py-4 text-right">Actions</th>
+            <th class="px-4 py-3.5 w-28 whitespace-nowrap">Status</th>
+            <th class="px-5 py-3.5 w-64 min-w-[200px]">Client Contact</th>
+            <th class="px-4 py-3.5 w-36 whitespace-nowrap">Group</th>
+            <th class="px-4 py-3.5 w-44 whitespace-nowrap">Templates & Rotation</th>
+            <th class="px-5 py-3.5 w-52 min-w-[170px]">Company & Scope</th>
+            <th class="px-5 py-3.5 min-w-[240px]">Current Milestone Note</th>
+            <th class="px-4 py-3.5 w-28 text-center whitespace-nowrap">24h Quota</th>
+            <th class="px-5 py-3.5 w-48 text-right whitespace-nowrap">Actions</th>
           </tr>
         </thead>
         <tbody id="clientsTableBody" class="divide-y divide-slate-700/60">
@@ -157,98 +171,112 @@
               data-group-name="{{ c.group_name|lower if c.group_name else 'ungrouped' }}">
             
             <!-- Checkbox -->
-            <td class="px-4 py-4 text-center">
+            <td class="px-4 py-3.5 text-center">
               <input type="checkbox" class="client-checkbox w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
                      data-client-id="{{ c.client_id }}" onchange="updateSelectedCount()">
             </td>
 
             <!-- Status Pill -->
-            <td class="px-4 py-4 whitespace-nowrap">
+            <td class="px-4 py-3.5 whitespace-nowrap">
               {% if c.is_active %}
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                🟢 Active
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>
+                Active
               </span>
               {% else %}
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                ⏸ Paused
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5"></span>
+                Paused
               </span>
               {% endif %}
             </td>
 
-            <!-- Client Contact -->
-            <td class="px-5 py-4">
-              <div class="font-bold text-white">{{ c.name }}</div>
-              <div class="text-xs text-slate-400">{{ c.email }}</div>
+            <!-- Client Contact with Avatar Initial -->
+            <td class="px-5 py-3.5">
+              <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white text-xs font-bold uppercase shadow-sm flex-shrink-0">
+                  {{ c.name[:1] if c.name else '?' }}
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="font-bold text-white text-sm truncate" title="{{ c.name }}">{{ c.name }}</div>
+                  <div class="text-xs text-slate-400 truncate font-mono" title="{{ c.email }}">{{ c.email }}</div>
+                </div>
+              </div>
             </td>
 
             <!-- Group Badge -->
-            <td class="px-4 py-4 whitespace-nowrap">
+            <td class="px-4 py-3.5 whitespace-nowrap">
               {% if c.group_name %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-indigo-950/60 text-indigo-300 border border-indigo-700/40">
+              <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-950/60 text-indigo-300 border border-indigo-700/40">
                 📁 {{ c.group_name }}
               </span>
               {% else %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700">
+              <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 text-slate-400 border border-slate-700">
                 Ungrouped
               </span>
               {% endif %}
             </td>
 
             <!-- Template Rotation Badge -->
-            <td class="px-4 py-4 whitespace-nowrap">
+            <td class="px-4 py-3.5 whitespace-nowrap">
               {% if c.assigned_template_ids and c.assigned_template_ids|length > 0 %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-purple-950/60 text-purple-300 border border-purple-700/40">
+              <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-950/60 text-purple-300 border border-purple-700/40">
                 🔄 {{ c.assigned_template_ids|length }} Templates
               </span>
               {% else %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700">
+              <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 text-slate-400 border border-slate-700">
                 🔄 All Active
               </span>
               {% endif %}
-              <div class="text-[10px] text-slate-400 mt-0.5">
+              <div class="text-[11px] text-slate-400 mt-1 flex items-center space-x-1">
                 {% if c.rotation_interval_minutes and c.rotation_interval_minutes > 0 %}
-                ⏱️ Every {{ c.rotation_interval_minutes }}m
+                <span>⏱️ Every {{ c.rotation_interval_minutes }}m</span>
                 {% else %}
-                ⚡ Every send
+                <span>⚡ Every send</span>
                 {% endif %}
               </div>
             </td>
 
             <!-- Company & Scope -->
-            <td class="px-5 py-4">
-              <div class="font-medium text-slate-200">{{ c.company or 'Client Partner' }}</div>
-              <div class="text-xs text-blue-400">{{ c.project_name }}</div>
+            <td class="px-5 py-3.5">
+              <div class="font-medium text-slate-200 text-sm truncate" title="{{ c.company or 'Client Partner' }}">{{ c.company or 'Client Partner' }}</div>
+              <div class="text-xs text-blue-400 font-medium truncate" title="{{ c.project_name }}">{{ c.project_name }}</div>
             </td>
 
-            <!-- Milestone Note -->
-            <td class="px-5 py-4">
-              <div class="text-xs text-slate-300 max-w-xs truncate" title="{{ c.reminder_note }}">
-                {{ c.reminder_note }}
+            <!-- Current Milestone Note -->
+            <td class="px-5 py-3.5">
+              <div class="text-xs text-slate-300 leading-relaxed line-clamp-2" title="{{ c.reminder_note }}">
+                {{ c.reminder_note or 'No milestone note set' }}
               </div>
             </td>
 
-            <!-- Quota -->
-            <td class="px-4 py-4 text-center whitespace-nowrap">
-              <span class="font-bold text-white">{{ c.sent_24h }}</span>
-              <span class="text-xs text-slate-400">/ {{ c.daily_limit }}</span>
+            <!-- 24h Quota -->
+            <td class="px-4 py-3.5 text-center whitespace-nowrap">
+              <div class="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 font-mono text-xs">
+                <span class="font-bold text-white">{{ c.sent_24h }}</span>
+                <span class="text-slate-500 mx-1">/</span>
+                <span class="text-slate-400">{{ c.daily_limit }}</span>
+              </div>
             </td>
 
             <!-- Actions (Edit, Pause/Resume, Delete) -->
-            <td class="px-5 py-4 text-right whitespace-nowrap space-x-1.5">
-              <button onclick='editClient({{ c|tojson }})' title="Edit client"
-                      class="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors">
-                ✏️ Edit
-              </button>
+            <td class="px-5 py-3.5 text-right whitespace-nowrap">
+              <div class="inline-flex items-center justify-end space-x-1.5">
+                <button onclick='editClient({{ c|tojson }})' title="Edit client"
+                        class="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors">
+                  ✏️ Edit
+                </button>
 
-              <button onclick="toggleActive('{{ c.client_id }}')" title="Pause or Resume reminders"
-                      class="text-xs font-semibold px-2.5 py-1.5 rounded-lg {% if c.is_active %}bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/50{% else %}bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-700/50{% endif %} transition-colors">
-                {% if c.is_active %}Pause{% else %}Resume{% endif %}
-              </button>
+                <button onclick="toggleActive('{{ c.client_id }}')" title="Pause or Resume reminders"
+                        class="text-xs font-semibold px-2.5 py-1.5 rounded-lg {% if c.is_active %}bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/50{% else %}bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-700/50{% endif %} transition-colors">
+                  {% if c.is_active %}⏸ Pause{% else %}▶️ Resume{% endif %}
+                </button>
 
-              <button onclick="confirmDeleteClient('{{ c.client_id }}', '{{ c.name|escape }}')" title="Delete client permanently"
-                      class="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 border border-red-700/50 transition-colors">
-                🗑️ Delete
-              </button>
+                <button onclick="confirmDeleteClient('{{ c.client_id }}', '{{ c.name|escape }}')" title="Delete client permanently"
+                        class="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 border border-red-700/50 transition-colors">
+                  🗑️ Delete
+                </button>
+              </div>
             </td>
 
           </tr>
@@ -580,7 +608,10 @@
       }
     });
 
-    // Toggle empty state
+    // Toggle empty state and update count
+    const badge = document.getElementById('tableClientCountBadge');
+    if (badge) badge.textContent = visibleCount;
+
     const emptyState = document.getElementById('emptyState');
     if (visibleCount === 0) {
       emptyState.classList.remove('hidden');
