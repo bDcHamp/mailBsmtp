@@ -240,6 +240,135 @@ Invalid Row,invalid-email-address,,,
         mock_stop.assert_called_once()
         engine_manager.is_running = False
 
+    def test_templates_seeded_and_crud(self):
+        """Verify initial templates are seeded and template CRUD APIs work."""
+        self.client.post("/login", data={"username": "testadmin", "password": "testpass123"})
+
+        # Initial seeding should have 3 starter templates
+        t_resp = self.client.get("/api/templates")
+        self.assertEqual(t_resp.status_code, 200)
+        t_data = t_resp.get_json()
+        self.assertTrue(t_data["success"])
+        self.assertGreaterEqual(len(t_data["templates"]), 3)
+
+        # Create new template
+        create_resp = self.client.post("/api/templates/create", json={
+            "name": "Custom Follow-Up Variant Z",
+            "subject": "Status on {project_name}",
+            "html_content": "<p>Hello {client_name}</p>",
+            "text_content": "Hello {client_name}",
+            "is_active": 1
+        })
+        self.assertEqual(create_resp.status_code, 200)
+        new_tid = create_resp.get_json()["template_id"]
+        self.assertIsNotNone(new_tid)
+
+        # Duplicate template
+        dup_resp = self.client.post("/api/templates/duplicate", json={"template_id": new_tid})
+        self.assertEqual(dup_resp.status_code, 200)
+        dup_tid = dup_resp.get_json()["template_id"]
+        self.assertIsNotNone(dup_tid)
+
+        # Toggle active
+        toggle_resp = self.client.post("/api/templates/toggle", json={"template_id": dup_tid})
+        self.assertEqual(toggle_resp.status_code, 200)
+        self.assertFalse(toggle_resp.get_json()["is_active"])
+
+        # Delete duplicate template
+        del_resp = self.client.post("/api/templates/delete", json={"template_id": dup_tid})
+        self.assertEqual(del_resp.status_code, 200)
+        self.assertTrue(del_resp.get_json()["success"])
+
+    def test_client_template_assignment_and_cyclic_rotation(self):
+        """
+        Verify assigning specific templates to a client and testing the auto-rotation engine:
+        assert sequential sends cycle through assigned templates and never repeat back-to-back!
+        """
+        from mailer.database import (
+            create_email_template,
+            get_next_template_for_client,
+            record_delivery,
+            set_client_assigned_templates,
+        )
+
+        self.client.post("/login", data={"username": "testadmin", "password": "testpass123"})
+
+        # Create 3 isolated templates
+        t1 = create_email_template("Rot Alpha", "Alpha {project_name}", "<p>A</p>", "A", 1, self.test_db)
+        t2 = create_email_template("Rot Beta", "Beta {project_name}", "<p>B</p>", "B", 1, self.test_db)
+        t3 = create_email_template("Rot Gamma", "Gamma {project_name}", "<p>C</p>", "C", 1, self.test_db)
+
+        cid = "client_rotation_test@example.com"
+        self.client.post("/api/clients/add", json={
+            "name": "Rotation Tester",
+            "email": cid,
+            "template_ids": [t1, t2, t3],
+            "rotation_interval_minutes": 0 # rotate on every send
+        })
+
+        # 1. First send: should pick first eligible template (t1)
+        next_t = get_next_template_for_client(cid, self.test_db)
+        self.assertEqual(next_t["id"], t1)
+        # Record send
+        record_delivery(cid, cid, "Subj 1", 1, "SUCCESS", None, self.test_db, template_id=t1, template_name="Rot Alpha")
+
+        # 2. Second send: should rotate to t2
+        next_t2 = get_next_template_for_client(cid, self.test_db)
+        self.assertEqual(next_t2["id"], t2)
+        record_delivery(cid, cid, "Subj 2", 2, "SUCCESS", None, self.test_db, template_id=t2, template_name="Rot Beta")
+
+        # 3. Third send: should rotate to t3
+        next_t3 = get_next_template_for_client(cid, self.test_db)
+        self.assertEqual(next_t3["id"], t3)
+        record_delivery(cid, cid, "Subj 3", 3, "SUCCESS", None, self.test_db, template_id=t3, template_name="Rot Gamma")
+
+        # 4. Fourth send: cycles back to t1 (never repeats consecutively)
+        next_t4 = get_next_template_for_client(cid, self.test_db)
+        self.assertEqual(next_t4["id"], t1)
+
+    def test_template_time_based_rotation(self):
+        """
+        Verify time-based rotation: when rotation_interval_minutes is set (e.g. 60m),
+        sends within the time window keep the template, then rotate once window elapses.
+        """
+        import time
+        from mailer.database import (
+            create_email_template,
+            get_next_template_for_client,
+            record_delivery,
+        )
+
+        self.client.post("/login", data={"username": "testadmin", "password": "testpass123"})
+
+        t1 = create_email_template("Window A", "Sub A", "<p>A</p>", "A", 1, self.test_db)
+        t2 = create_email_template("Window B", "Sub B", "<p>B</p>", "B", 1, self.test_db)
+
+        cid = "time_client@example.com"
+        self.client.post("/api/clients/add", json={
+            "name": "Time Tester",
+            "email": cid,
+            "template_ids": [t1, t2],
+            "rotation_interval_minutes": 60 # 60 minutes
+        })
+
+        # Record a send that just occurred (1 minute ago)
+        now = time.time()
+        record_delivery(cid, cid, "Subj A", 1, "SUCCESS", None, self.test_db, template_id=t1, template_name="Window A")
+
+        # Within 60 min window: should still use t1
+        curr = get_next_template_for_client(cid, self.test_db)
+        self.assertEqual(curr["id"], t1)
+
+        # Now simulate that 70 minutes have passed by backdating delivery_log sent_at
+        conn = sqlite3 = __import__("sqlite3").connect(str(self.test_db))
+        conn.execute("UPDATE delivery_logs SET sent_at = ? WHERE client_id = ?", (now - 4200, cid))
+        conn.commit()
+        conn.close()
+
+        # Window elapsed: should rotate to t2!
+        rotated = get_next_template_for_client(cid, self.test_db)
+        self.assertEqual(rotated["id"], t2)
+
 
 if __name__ == "__main__":
     unittest.main()

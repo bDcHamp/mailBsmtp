@@ -137,12 +137,13 @@
                      class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer">
             </th>
             <th class="px-4 py-4">Status</th>
-            <th class="px-6 py-4">Client Contact</th>
+            <th class="px-5 py-4">Client Contact</th>
             <th class="px-4 py-4">Group</th>
-            <th class="px-6 py-4">Company & Scope</th>
-            <th class="px-6 py-4">Current Work Milestone Note</th>
+            <th class="px-4 py-4">Templates & Rotation</th>
+            <th class="px-5 py-4">Company & Scope</th>
+            <th class="px-5 py-4">Current Milestone Note</th>
             <th class="px-4 py-4 text-center">24h Quota</th>
-            <th class="px-6 py-4 text-right">Actions</th>
+            <th class="px-5 py-4 text-right">Actions</th>
           </tr>
         </thead>
         <tbody id="clientsTableBody" class="divide-y divide-slate-700/60">
@@ -175,7 +176,7 @@
             </td>
 
             <!-- Client Contact -->
-            <td class="px-6 py-4">
+            <td class="px-5 py-4">
               <div class="font-bold text-white">{{ c.name }}</div>
               <div class="text-xs text-slate-400">{{ c.email }}</div>
             </td>
@@ -193,14 +194,34 @@
               {% endif %}
             </td>
 
+            <!-- Template Rotation Badge -->
+            <td class="px-4 py-4 whitespace-nowrap">
+              {% if c.assigned_template_ids and c.assigned_template_ids|length > 0 %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-purple-950/60 text-purple-300 border border-purple-700/40">
+                🔄 {{ c.assigned_template_ids|length }} Templates
+              </span>
+              {% else %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                🔄 All Active
+              </span>
+              {% endif %}
+              <div class="text-[10px] text-slate-400 mt-0.5">
+                {% if c.rotation_interval_minutes and c.rotation_interval_minutes > 0 %}
+                ⏱️ Every {{ c.rotation_interval_minutes }}m
+                {% else %}
+                ⚡ Every send
+                {% endif %}
+              </div>
+            </td>
+
             <!-- Company & Scope -->
-            <td class="px-6 py-4">
+            <td class="px-5 py-4">
               <div class="font-medium text-slate-200">{{ c.company or 'Client Partner' }}</div>
               <div class="text-xs text-blue-400">{{ c.project_name }}</div>
             </td>
 
             <!-- Milestone Note -->
-            <td class="px-6 py-4">
+            <td class="px-5 py-4">
               <div class="text-xs text-slate-300 max-w-xs truncate" title="{{ c.reminder_note }}">
                 {{ c.reminder_note }}
               </div>
@@ -213,7 +234,7 @@
             </td>
 
             <!-- Actions (Edit, Pause/Resume, Delete) -->
-            <td class="px-6 py-4 text-right whitespace-nowrap space-x-1.5">
+            <td class="px-5 py-4 text-right whitespace-nowrap space-x-1.5">
               <button onclick='editClient({{ c|tojson }})' title="Edit client"
                       class="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors">
                 ✏️ Edit
@@ -260,13 +281,13 @@
 <!-- 1. Add / Edit Client Modal -->
 <!-- ============================================================== -->
 <div id="clientModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-  <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
-    <div class="flex items-center justify-between pb-4 border-b border-slate-700 mb-5">
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative max-h-[92vh] flex flex-col">
+    <div class="flex items-center justify-between pb-4 border-b border-slate-700 mb-4">
       <h3 id="modalTitle" class="text-lg font-bold text-white">Add New Client</h3>
       <button onclick="closeModal('clientModal')" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
     </div>
 
-    <form id="clientForm" onsubmit="saveClient(event)" class="space-y-4">
+    <form id="clientForm" onsubmit="saveClient(event)" class="space-y-4 overflow-y-auto pr-1 flex-1">
       <div>
         <label class="block text-xs font-semibold text-slate-300 mb-1">Contact Name</label>
         <input type="text" id="mName" required placeholder="John Doe"
@@ -290,6 +311,46 @@
         </select>
       </div>
 
+      <!-- Template Selection & Auto-Rotation Pool -->
+      <div class="bg-slate-900/80 border border-slate-700/80 rounded-xl p-3.5 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
+            <span>🔄</span>
+            <span>Assigned Email Templates</span>
+          </label>
+          <label class="flex items-center space-x-1.5 text-xs text-blue-400 cursor-pointer">
+            <input type="checkbox" id="mAllTemplates" onchange="toggleAllTemplates(this)" class="rounded bg-slate-800 border-slate-600 text-blue-600">
+            <span>Use All Active</span>
+          </label>
+        </div>
+
+        <div id="mTemplatesList" class="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+          {% for t in templates %}
+          <label class="flex items-center space-x-2 text-xs text-slate-300 hover:text-white cursor-pointer bg-slate-950/60 p-2 rounded-lg border border-slate-800">
+            <input type="checkbox" value="{{ t.id }}" class="client-template-checkbox rounded bg-slate-800 border-slate-600 text-blue-600" onchange="onIndividualTemplateToggle()">
+            <span class="font-medium truncate flex-1">{{ t.name }}</span>
+            <span class="text-[10px] text-slate-500">{{ t.subject|truncate(28) }}</span>
+          </label>
+          {% endfor %}
+        </div>
+
+        <!-- Rotation Timing -->
+        <div class="pt-2 border-t border-slate-800">
+          <label class="block text-[11px] font-semibold text-slate-300 mb-1">Auto-Rotation Timing</label>
+          <select id="mRotationTiming" class="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:ring-2 focus:ring-purple-500">
+            <option value="0">⚡ Rotate on Every Scheduled Send (Default)</option>
+            <option value="15">⏱️ Rotate Every 15 Minutes</option>
+            <option value="30">⏱️ Rotate Every 30 Minutes</option>
+            <option value="60">⏱️ Rotate Every 1 Hour</option>
+            <option value="120">⏱️ Rotate Every 2 Hours</option>
+            <option value="360">⏱️ Rotate Every 6 Hours</option>
+            <option value="720">⏱️ Rotate Every 12 Hours</option>
+            <option value="1440">⏱️ Rotate Every 24 Hours (Daily)</option>
+          </select>
+          <p class="text-[10px] text-slate-400 mt-1">Controls how frequently this client cycles to the next assigned template variant.</p>
+        </div>
+      </div>
+
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-semibold text-slate-300 mb-1">Company / Brand</label>
@@ -304,7 +365,7 @@
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-slate-300 mb-1">Project / Campaign Deliverable</label>
+        <label class="block text-xs font-semibold text-slate-300 mb-1">Project / Deliverable Scope</label>
         <input type="text" id="mProject" placeholder="SEO & Social Media Optimization"
                class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:ring-2 focus:ring-blue-500">
       </div>
@@ -320,7 +381,7 @@
         <label for="mActive" class="text-xs font-medium text-slate-300">Active (Dispatch 24/7 scheduled work reminders)</label>
       </div>
 
-      <div class="flex justify-end space-x-3 pt-4 border-t border-slate-700 mt-5">
+      <div class="flex justify-end space-x-3 pt-4 border-t border-slate-700 mt-4">
         <button type="button" onclick="closeModal('clientModal')" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-sm text-slate-300">Cancel</button>
         <button type="submit" id="clientSaveBtn" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-semibold text-white">Save Client</button>
       </div>
@@ -545,6 +606,22 @@
   });
 
   // -------------------------------------------------------------
+  // Template Selection Helpers in Client Modal
+  // -------------------------------------------------------------
+  function toggleAllTemplates(masterCheckbox) {
+    const isChecked = masterCheckbox.checked;
+    document.querySelectorAll('.client-template-checkbox').forEach(cb => {
+      cb.checked = isChecked;
+    });
+  }
+
+  function onIndividualTemplateToggle() {
+    const total = document.querySelectorAll('.client-template-checkbox').length;
+    const checked = document.querySelectorAll('.client-template-checkbox:checked').length;
+    document.getElementById('mAllTemplates').checked = (total > 0 && total === checked);
+  }
+
+  // -------------------------------------------------------------
   // Client CRUD
   // -------------------------------------------------------------
   function openClientModal() {
@@ -558,6 +635,12 @@
     document.getElementById('mNote').value = 'Regular work progress and campaign monitoring.';
     document.getElementById('mLimit').value = '100';
     document.getElementById('mActive').checked = true;
+
+    // Reset templates checklist to all selected
+    document.getElementById('mAllTemplates').checked = true;
+    document.querySelectorAll('.client-template-checkbox').forEach(cb => cb.checked = true);
+    document.getElementById('mRotationTiming').value = '0';
+
     openModal('clientModal');
   }
 
@@ -572,6 +655,22 @@
     document.getElementById('mNote').value = client.reminder_note || '';
     document.getElementById('mLimit').value = client.daily_limit || 100;
     document.getElementById('mActive').checked = Boolean(client.is_active);
+
+    // Populate template assignments
+    const assigned = client.assigned_template_ids || [];
+    document.getElementById('mRotationTiming').value = String(client.rotation_interval_minutes || 0);
+
+    if (!assigned || assigned.length === 0) {
+      document.getElementById('mAllTemplates').checked = true;
+      document.querySelectorAll('.client-template-checkbox').forEach(cb => cb.checked = true);
+    } else {
+      document.getElementById('mAllTemplates').checked = false;
+      document.querySelectorAll('.client-template-checkbox').forEach(cb => {
+        cb.checked = assigned.includes(parseInt(cb.value));
+      });
+      onIndividualTemplateToggle();
+    }
+
     openModal('clientModal');
   }
 
@@ -581,6 +680,14 @@
     btn.disabled = true;
     btn.textContent = "Saving...";
 
+    // Determine template assignments
+    let selectedTids = [];
+    if (!document.getElementById('mAllTemplates').checked) {
+      document.querySelectorAll('.client-template-checkbox:checked').forEach(cb => {
+        selectedTids.push(parseInt(cb.value));
+      });
+    }
+
     const payload = {
       name: document.getElementById('mName').value.trim(),
       email: document.getElementById('mEmail').value.trim(),
@@ -589,7 +696,9 @@
       project_name: document.getElementById('mProject').value.trim(),
       reminder_note: document.getElementById('mNote').value.trim(),
       daily_limit: parseInt(document.getElementById('mLimit').value, 10),
-      is_active: document.getElementById('mActive').checked ? 1 : 0
+      is_active: document.getElementById('mActive').checked ? 1 : 0,
+      template_ids: selectedTids,
+      rotation_interval_minutes: parseInt(document.getElementById('mRotationTiming').value, 10)
     };
 
     try {

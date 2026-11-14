@@ -13,6 +13,7 @@ from mailer.config import Config
 from mailer.database import (
     get_active_clients,
     get_client_sends_in_window,
+    get_next_template_for_client,
     record_delivery,
 )
 from mailer.engine import DispatchEngine
@@ -85,7 +86,12 @@ class WebEngineManager:
                                 )
                                 seq = sent_in_window + 1
 
-                                self.add_log("INFO", f"Sending reminder #{seq}/{limit} to {name} ({recipient})...")
+                                # Select next rotating template for client
+                                template = get_next_template_for_client(cid, Config.DATABASE_PATH)
+                                template_name = template["name"] if template else "Default Template"
+                                template_id = template["id"] if template else None
+
+                                self.add_log("INFO", f"Sending reminder #{seq}/{limit} [{template_name}] to {name} ({recipient})...")
 
                                 msg = create_reminder_message(
                                     client=client,
@@ -95,6 +101,7 @@ class WebEngineManager:
                                     subject_prefix=Config.EMAIL_SUBJECT,
                                     html_template_path=Config.HTML_TEMPLATE_PATH,
                                     text_template_path=Config.TEXT_TEMPLATE_PATH,
+                                    template_data=template,
                                 )
 
                                 success, err = self.engine.smtp_client.send_email(
@@ -112,9 +119,11 @@ class WebEngineManager:
                                         status="SUCCESS",
                                         error_message=None,
                                         db_path=Config.DATABASE_PATH,
+                                        template_id=template_id,
+                                        template_name=template_name,
                                     )
                                     rem = max(0, limit - seq)
-                                    self.add_log("SUCCESS", f"Delivered to {name}! (Remaining 24h Quota: {rem})")
+                                    self.add_log("SUCCESS", f"Delivered [{template_name}] to {name}! (Remaining 24h Quota: {rem})")
                                 else:
                                     record_delivery(
                                         client_id=cid,
@@ -124,6 +133,8 @@ class WebEngineManager:
                                         status="FAILED",
                                         error_message=err,
                                         db_path=Config.DATABASE_PATH,
+                                        template_id=template_id,
+                                        template_name=template_name,
                                     )
                                     self.add_log("ERROR", f"Delivery failed for {name}: {err}")
 

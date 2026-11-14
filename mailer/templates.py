@@ -8,12 +8,12 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formatdate, make_msgid
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 def load_file_content(path: Path, fallback_content: str) -> str:
     """Read template file content with fallback."""
-    if path.is_file():
+    if path and path.is_file():
         try:
             return path.read_text(encoding="utf-8")
         except Exception:
@@ -51,7 +51,6 @@ Best regards,
 
 def render_string(template_str: str, context: Dict[str, Any]) -> str:
     """Format template string safely with dictionary context."""
-    # Use standard str.format with a safe fallback
     class SafeDict(dict):
         def __missing__(self, key):
             return f"{{{key}}}"
@@ -64,12 +63,14 @@ def create_reminder_message(
     sequence_num: int,
     sender_name: str,
     sender_email: str,
-    subject_prefix: str,
-    html_template_path: Path,
-    text_template_path: Path,
+    subject_prefix: str = "Work Progress Reminder",
+    html_template_path: Optional[Path] = None,
+    text_template_path: Optional[Path] = None,
+    template_data: Optional[Dict[str, Any]] = None,
 ) -> MIMEMultipart:
     """
     Construct a complete, RFC-compliant multipart MIME email.
+    Supports either dynamic template_data (from database) or static template files.
     """
     now = datetime.now()
     context = {
@@ -86,16 +87,27 @@ def create_reminder_message(
         "sender_email": sender_email,
     }
 
-    # Load and render template bodies
-    html_raw = load_file_content(html_template_path, FALLBACK_HTML)
-    text_raw = load_file_content(text_template_path, FALLBACK_TEXT)
+    # Determine Subject, HTML, and Text source
+    if template_data:
+        subject_raw = template_data.get("subject", subject_prefix)
+        subject_rendered = render_string(subject_raw, context)
+        # If subject template does not have [#{sequence_num}], optionally add it if not already present
+        if f"#{sequence_num}" not in subject_rendered:
+            subject_rendered = f"{subject_rendered} [#{sequence_num}]"
+
+        html_raw = template_data.get("html_content", FALLBACK_HTML)
+        text_raw = template_data.get("text_content", FALLBACK_TEXT)
+    else:
+        subject_rendered = f"{subject_prefix} - {context['project_name']} [#{sequence_num}]"
+        html_raw = load_file_content(html_template_path, FALLBACK_HTML) if html_template_path else FALLBACK_HTML
+        text_raw = load_file_content(text_template_path, FALLBACK_TEXT) if text_template_path else FALLBACK_TEXT
 
     rendered_html = render_string(html_raw, context)
     rendered_text = render_string(text_raw, context)
 
     # Compose MIME message
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"{subject_prefix} - {context['project_name']} [#{sequence_num}]"
+    msg["Subject"] = subject_rendered
     msg["From"] = f'"{sender_name}" <{sender_email}>'
     msg["To"] = f'"{context["client_name"]}" <{context["client_email"]}>'
     msg["Date"] = formatdate(localtime=True)
@@ -114,4 +126,3 @@ def create_reminder_message(
     msg.attach(MIMEText(rendered_html, "html", "utf-8"))
 
     return msg
-

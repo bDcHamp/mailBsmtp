@@ -16,6 +16,7 @@ from mailer.database import (
     get_active_clients,
     get_client_last_sent_time,
     get_client_sends_in_window,
+    get_next_template_for_client,
     record_delivery,
 )
 from mailer.smtp_client import SMTPClient
@@ -94,6 +95,11 @@ class DispatchEngine:
         sequence_num = sent_in_window + 1
         limit = client.get("daily_limit", self.config.DAILY_CAP_PER_CLIENT)
 
+        # Select next rotating template for client
+        template = get_next_template_for_client(cid, self.config.DATABASE_PATH)
+        template_name = template["name"] if template else "Default Template"
+        template_id = template["id"] if template else None
+
         msg = create_reminder_message(
             client=client,
             sequence_num=sequence_num,
@@ -102,10 +108,11 @@ class DispatchEngine:
             subject_prefix=self.config.EMAIL_SUBJECT,
             html_template_path=self.config.HTML_TEMPLATE_PATH,
             text_template_path=self.config.TEXT_TEMPLATE_PATH,
+            template_data=template,
         )
 
         time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{time_str}] -> Dispatching to {client_name} ({recipient}) [#{sequence_num}/{limit}]... ", end="", flush=True)
+        print(f"[{time_str}] -> Dispatching to {client_name} ({recipient}) [#{sequence_num}/{limit}] [{template_name}]... ", end="", flush=True)
 
         success, error = self.smtp_client.send_email(
             sender=self.config.SENDER_EMAIL,
@@ -122,10 +129,12 @@ class DispatchEngine:
                 status="SUCCESS",
                 error_message=None,
                 db_path=self.config.DATABASE_PATH,
+                template_id=template_id,
+                template_name=template_name,
             )
             self._consecutive_failures[cid] = 0
             remaining = max(0, limit - sequence_num)
-            print(f"DELIVERED (Remaining 24h Quota: {remaining})")
+            print(f"DELIVERED [{template_name}] (Remaining 24h Quota: {remaining})")
             return True
         else:
             record_delivery(
@@ -136,6 +145,8 @@ class DispatchEngine:
                 status="FAILED",
                 error_message=error,
                 db_path=self.config.DATABASE_PATH,
+                template_id=template_id,
+                template_name=template_name,
             )
             self._consecutive_failures[cid] = self._consecutive_failures.get(cid, 0) + 1
             print(f"FAILED: {error}")

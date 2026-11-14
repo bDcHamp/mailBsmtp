@@ -22,15 +22,24 @@ from flask import (
 from mailer.clients import parse_csv_stream, sync_clients
 from mailer.config import BASE_DIR, Config
 from mailer.database import (
+    create_email_template,
     create_group,
     delete_client,
+    delete_email_template,
     delete_group,
+    duplicate_email_template,
     get_active_clients,
     get_all_clients,
     get_all_groups,
+    get_all_templates,
+    get_client_assigned_template_ids,
     get_client_summary_stats,
     get_group,
+    get_template_by_id,
+    set_client_assigned_templates,
     toggle_group_active,
+    toggle_template_active,
+    update_email_template,
     update_group,
     upsert_client,
 )
@@ -84,6 +93,7 @@ def logout():
 def dashboard():
     stats = get_client_summary_stats(Config.DATABASE_PATH, Config.WINDOW_HOURS)
     groups = get_all_groups(Config.DATABASE_PATH)
+    templates = get_all_templates(Config.DATABASE_PATH)
     active_count = sum(1 for s in stats if s["is_active"])
     total_sent = sum(s["sent_24h"] for s in stats)
     total_remaining = sum(s["remaining_quota"] for s in stats if s["is_active"])
@@ -95,6 +105,7 @@ def dashboard():
         active_clients=active_count,
         total_clients=len(stats),
         total_groups=len(groups),
+        total_templates=len(templates),
         total_sent=total_sent,
         total_remaining=total_remaining,
         smtp_host=Config.SMTP_HOST,
@@ -107,6 +118,7 @@ def dashboard():
 def clients():
     stats = get_client_summary_stats(Config.DATABASE_PATH, Config.WINDOW_HOURS)
     groups = get_all_groups(Config.DATABASE_PATH)
+    templates = get_all_templates(Config.DATABASE_PATH)
     all_clients_map = {c["client_id"]: c for c in get_all_clients(Config.DATABASE_PATH)}
 
     enriched = []
@@ -128,6 +140,8 @@ def clients():
             "group_id": s.get("group_id"),
             "group_name": s.get("group_name"),
             "group_is_active": s.get("group_is_active", 1),
+            "rotation_interval_minutes": s.get("rotation_interval_minutes", 0),
+            "assigned_template_ids": s.get("assigned_template_ids", []),
         })
 
     return render_template(
@@ -135,6 +149,7 @@ def clients():
         active_tab="clients",
         clients=enriched,
         groups=groups,
+        templates=templates,
     )
 
 
@@ -142,10 +157,12 @@ def clients():
 @login_required
 def template_view():
     active_clients = get_active_clients(Config.DATABASE_PATH)
+    templates = get_all_templates(Config.DATABASE_PATH)
     return render_template(
         "template.html",
         active_tab="template",
         clients=active_clients,
+        templates=templates,
         default_subject=Config.EMAIL_SUBJECT,
     )
 
@@ -169,6 +186,7 @@ def settings_view():
 def api_stats():
     stats = get_client_summary_stats(Config.DATABASE_PATH, Config.WINDOW_HOURS)
     groups = get_all_groups(Config.DATABASE_PATH)
+    templates = get_all_templates(Config.DATABASE_PATH)
     active_count = sum(1 for s in stats if s["is_active"])
     total_sent = sum(s["sent_24h"] for s in stats)
     total_remaining = sum(s["remaining_quota"] for s in stats if s["is_active"])
@@ -178,6 +196,7 @@ def api_stats():
         "active_clients": active_count,
         "total_clients": len(stats),
         "total_groups": len(groups),
+        "total_templates": len(templates),
         "total_sent": total_sent,
         "total_remaining": total_remaining,
         "smtp_host": Config.SMTP_HOST,
@@ -273,6 +292,160 @@ def api_group_delete():
 
 
 # -------------------------------------------------------------
+# Email Templates Studio APIs
+# -------------------------------------------------------------
+
+@main_bp.route("/api/templates", methods=["GET"])
+@login_required
+def api_templates_list():
+    templates = get_all_templates(Config.DATABASE_PATH)
+    return jsonify({"success": True, "templates": templates})
+
+
+@main_bp.route("/api/templates/create", methods=["POST"])
+@login_required
+def api_template_create():
+    data = request.json or request.form
+    name = data.get("name", "").strip()
+    subject = data.get("subject", "").strip()
+    html_content = data.get("html_content", "").strip()
+    text_content = data.get("text_content", "").strip()
+    is_active = 1 if data.get("is_active", True) in (True, 1, "1", "true") else 0
+
+    if not name:
+        return jsonify({"success": False, "error": "Template name is required"}), 400
+    if not subject:
+        return jsonify({"success": False, "error": "Email subject line is required"}), 400
+    if not html_content and not text_content:
+        return jsonify({"success": False, "error": "Please provide HTML or plain text body"}), 400
+
+    try:
+        tid = create_email_template(
+            name=name,
+            subject=subject,
+            html_content=html_content or f"<pre>{text_content}</pre>",
+            text_content=text_content or html_content,
+            is_active=is_active,
+            db_path=Config.DATABASE_PATH,
+        )
+        return jsonify({"success": True, "template_id": tid, "message": f"Template '{name}' created"})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Failed to create template (name must be unique): {str(e)}"}), 400
+
+
+@main_bp.route("/api/templates/<int:template_id>", methods=["GET"])
+@login_required
+def api_template_get(template_id: int):
+    t = get_template_by_id(template_id, Config.DATABASE_PATH)
+    if not t:
+        return jsonify({"success": False, "error": "Template not found"}), 404
+    return jsonify({"success": True, "template": t})
+
+
+@main_bp.route("/api/templates/update", methods=["POST"])
+@login_required
+def api_template_update():
+    data = request.json or request.form
+    try:
+        template_id = int(data.get("template_id"))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid template ID"}), 400
+
+    name = data.get("name", "").strip()
+    subject = data.get("subject", "").strip()
+    html_content = data.get("html_content", "").strip()
+    text_content = data.get("text_content", "").strip()
+    is_active = 1 if data.get("is_active", True) in (True, 1, "1", "true") else 0
+
+    if not name or not subject:
+        return jsonify({"success": False, "error": "Template name and subject are required"}), 400
+
+    try:
+        update_email_template(
+            template_id=template_id,
+            name=name,
+            subject=subject,
+            html_content=html_content or f"<pre>{text_content}</pre>",
+            text_content=text_content or html_content,
+            is_active=is_active,
+            db_path=Config.DATABASE_PATH,
+        )
+        return jsonify({"success": True, "message": "Template updated successfully"})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Failed to update template: {str(e)}"}), 400
+
+
+@main_bp.route("/api/templates/toggle", methods=["POST"])
+@login_required
+def api_template_toggle():
+    data = request.json or request.form
+    try:
+        template_id = int(data.get("template_id"))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid template ID"}), 400
+
+    new_state = toggle_template_active(template_id, Config.DATABASE_PATH)
+    return jsonify({"success": True, "is_active": new_state})
+
+
+@main_bp.route("/api/templates/duplicate", methods=["POST"])
+@login_required
+def api_template_duplicate():
+    data = request.json or request.form
+    try:
+        template_id = int(data.get("template_id"))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid template ID"}), 400
+
+    new_tid = duplicate_email_template(template_id, Config.DATABASE_PATH)
+    if new_tid:
+        return jsonify({"success": True, "template_id": new_tid, "message": "Template duplicated successfully"})
+    return jsonify({"success": False, "error": "Failed to duplicate template"}), 404
+
+
+@main_bp.route("/api/templates/delete", methods=["POST"])
+@login_required
+def api_template_delete():
+    data = request.json or request.form
+    try:
+        template_id = int(data.get("template_id"))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid template ID"}), 400
+
+    deleted = delete_email_template(template_id, Config.DATABASE_PATH)
+    if deleted:
+        return jsonify({"success": True, "message": "Template deleted successfully"})
+    return jsonify({"success": False, "error": "Failed to delete template"}), 404
+
+
+@main_bp.route("/api/clients/<client_id>/templates", methods=["GET"])
+@login_required
+def api_client_get_templates(client_id: str):
+    tids = get_client_assigned_template_ids(client_id, Config.DATABASE_PATH)
+    return jsonify({"success": True, "template_ids": tids})
+
+
+@main_bp.route("/api/clients/assign-templates", methods=["POST"])
+@login_required
+def api_client_assign_templates():
+    data = request.json or request.form
+    client_id = data.get("client_id", "").strip().lower()
+    if not client_id:
+        return jsonify({"success": False, "error": "Client ID required"}), 400
+
+    raw_tids = data.get("template_ids", [])
+    if isinstance(raw_tids, str):
+        tids = [int(x.strip()) for x in raw_tids.split(",") if x.strip().isdigit()]
+    elif isinstance(raw_tids, list):
+        tids = [int(x) for x in raw_tids if str(x).isdigit()]
+    else:
+        tids = []
+
+    set_client_assigned_templates(client_id, tids, Config.DATABASE_PATH)
+    return jsonify({"success": True, "message": "Assigned templates updated"})
+
+
+# -------------------------------------------------------------
 # Client CRUD & File Handling APIs
 # -------------------------------------------------------------
 
@@ -293,6 +466,21 @@ def api_client_add():
         except (ValueError, TypeError):
             group_id = None
 
+    rot_interval = data.get("rotation_interval_minutes", 0)
+    try:
+        rot_interval = int(rot_interval)
+    except (ValueError, TypeError):
+        rot_interval = 0
+
+    # Parse template_ids if provided
+    raw_tids = data.get("template_ids")
+    template_ids = None
+    if raw_tids is not None:
+        if isinstance(raw_tids, str):
+            template_ids = [int(x.strip()) for x in raw_tids.split(",") if x.strip().isdigit()]
+        elif isinstance(raw_tids, list):
+            template_ids = [int(x) for x in raw_tids if str(x).isdigit()]
+
     client_data = {
         "client_id": email.lower(),
         "name": data.get("name", "").strip() or email.split("@")[0].title(),
@@ -303,7 +491,11 @@ def api_client_add():
         "daily_limit": int(data.get("daily_limit", 100)),
         "is_active": 1 if data.get("is_active", True) in (True, 1, "1", "true") else 0,
         "group_id": group_id,
+        "rotation_interval_minutes": rot_interval,
     }
+    if template_ids is not None:
+        client_data["template_ids"] = template_ids
+
     upsert_client(client_data, Config.DATABASE_PATH)
     return jsonify({"success": True})
 
@@ -442,7 +634,7 @@ def api_clients_sync_csv():
 
 
 # -------------------------------------------------------------
-# Template & Settings APIs
+# Template Render & Test Send APIs
 # -------------------------------------------------------------
 
 @main_bp.route("/api/template/render")
@@ -462,6 +654,11 @@ def api_template_render():
             "daily_limit": 100,
         }
 
+    template_id = request.args.get("template_id")
+    template_data = None
+    if template_id and template_id.isdigit():
+        template_data = get_template_by_id(int(template_id), Config.DATABASE_PATH)
+
     subject_prefix = request.args.get("subject", Config.EMAIL_SUBJECT)
     msg = create_reminder_message(
         client=client,
@@ -471,6 +668,7 @@ def api_template_render():
         subject_prefix=subject_prefix,
         html_template_path=Config.HTML_TEMPLATE_PATH,
         text_template_path=Config.TEXT_TEMPLATE_PATH,
+        template_data=template_data,
     )
 
     rendered_text = ""
@@ -489,6 +687,8 @@ def api_template_render():
         "date": msg["Date"],
         "text": rendered_text,
         "html": rendered_html,
+        "template_id": template_data["id"] if template_data else None,
+        "template_name": template_data["name"] if template_data else "Default",
     })
 
 
@@ -498,6 +698,7 @@ def api_template_send_test():
     data = request.json or request.form
     recipient = data.get("recipient", "").strip()
     client_id = data.get("client_id", "").strip()
+    template_id = data.get("template_id")
     subject = data.get("subject", Config.EMAIL_SUBJECT).strip()
 
     if not recipient or "@" not in recipient:
@@ -518,6 +719,10 @@ def api_template_send_test():
         client = client.copy()
         client["email"] = recipient
 
+    template_data = None
+    if template_id and str(template_id).isdigit():
+        template_data = get_template_by_id(int(template_id), Config.DATABASE_PATH)
+
     msg = create_reminder_message(
         client=client,
         sequence_num=1,
@@ -526,6 +731,7 @@ def api_template_send_test():
         subject_prefix=subject,
         html_template_path=Config.HTML_TEMPLATE_PATH,
         text_template_path=Config.TEXT_TEMPLATE_PATH,
+        template_data=template_data,
     )
 
     ok, err = engine_manager.engine.smtp_client.send_email(Config.SENDER_EMAIL, recipient, msg)
@@ -534,6 +740,10 @@ def api_template_send_test():
     else:
         return jsonify({"success": False, "error": err}), 500
 
+
+# -------------------------------------------------------------
+# Settings APIs
+# -------------------------------------------------------------
 
 @main_bp.route("/api/settings/test-smtp", methods=["POST"])
 @login_required
