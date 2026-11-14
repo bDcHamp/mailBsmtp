@@ -29,9 +29,6 @@ def cmd_sync(args):
 def cmd_status(args):
     """Display real-time delivery status, 24h quotas, and metrics for all clients."""
     init_db(Config.DATABASE_PATH)
-    # Ensure database has latest clients
-    sync_clients(Config.DATABASE_PATH, Config.CLIENTS_CSV_PATH, Config.CLIENTS_JSON_PATH)
-    
     stats = get_client_summary_stats(Config.DATABASE_PATH, Config.WINDOW_HOURS)
     
     print("\n" + "=" * 90)
@@ -131,7 +128,6 @@ def cmd_test(args):
 def cmd_start(args):
     """Launch the 24/7 background dispatcher daemon."""
     init_db(Config.DATABASE_PATH)
-    sync_clients(Config.DATABASE_PATH, Config.CLIENTS_CSV_PATH, Config.CLIENTS_JSON_PATH)
     engine = DispatchEngine(Config)
     engine.run_forever()
 

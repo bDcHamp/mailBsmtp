@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 from flask import Flask
 
-from mailer.clients import sync_clients
 from mailer.config import Config
 from mailer.database import init_db
 from web.engine_service import engine_manager
@@ -26,9 +25,8 @@ def create_app(config_overrides: dict = None) -> Flask:
     if config_overrides:
         app.config.update(config_overrides)
 
-    # Initialize local SQLite database and sync clients
+    # Initialize local SQLite database (preserving user deletions)
     init_db(Config.DATABASE_PATH)
-    sync_clients(Config.DATABASE_PATH, Config.CLIENTS_CSV_PATH, Config.CLIENTS_JSON_PATH)
 
     # Register Blueprints
     app.register_blueprint(auth_bp)
