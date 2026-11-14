@@ -207,11 +207,16 @@ def api_stats():
 @main_bp.route("/api/engine/toggle", methods=["POST"])
 @login_required
 def api_engine_toggle():
-    if engine_manager.is_running:
-        engine_manager.stop()
-    else:
-        engine_manager.start()
-    return jsonify({"success": True, "is_running": engine_manager.is_running})
+    try:
+        if engine_manager.is_running:
+            engine_manager.stop()
+        else:
+            engine_manager.start()
+        return jsonify({"success": True, "is_running": engine_manager.is_running})
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @main_bp.route("/api/engine/logs")

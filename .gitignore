@@ -55,3 +55,9 @@ Thumbs.db
 benchmark_results/
 reports/
 
+# SQLite databases
+*.db
+*.db-journal
+data/*.db
+data/*.db-journal
+

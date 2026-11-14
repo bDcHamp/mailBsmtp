@@ -27,12 +27,13 @@ class WebEngineManager:
         self.engine = DispatchEngine(Config)
         self.is_running = False
         self._thread = None
-        self._lock = threading.Lock()
+        self._state_lock = threading.RLock()
+        self._logs_lock = threading.Lock()
         self.logs_buffer = deque(maxlen=200)
         self.add_log("INFO", "Web Mailer service initialized and ready.")
 
     def add_log(self, level: str, message: str):
-        with self._lock:
+        with self._logs_lock:
             timestamp = datetime.now().strftime("%H:%M:%S")
             self.logs_buffer.append({
                 "time": timestamp,
@@ -41,11 +42,11 @@ class WebEngineManager:
             })
 
     def get_logs(self, limit: int = 50) -> List[Dict[str, str]]:
-        with self._lock:
+        with self._logs_lock:
             return list(self.logs_buffer)[-limit:]
 
     def start(self):
-        with self._lock:
+        with self._state_lock:
             if self.is_running:
                 return
 
@@ -155,7 +156,7 @@ class WebEngineManager:
             self._thread.start()
 
     def stop(self):
-        with self._lock:
+        with self._state_lock:
             if not self.is_running:
                 return
             self.engine.stop_event.set()
